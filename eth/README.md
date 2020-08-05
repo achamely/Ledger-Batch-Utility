@@ -1,5 +1,7 @@
 Batch utility to send multiple eth confirmations using Ledger. 
 
+Follow install instructions from main readme
+
 cp ethConfig.json.example ethConfig.json
 
 Update ethConfig.json and fill in infura url (used for broadcasting)
