@@ -1,0 +1,8 @@
+{
+  "web3url":"https://eth-mainnet.alchemyapi.io/v2/bPr0HoZKkmWzRwobHtxzuXw6k8k5hybU",
+  "gasLimit": 350000,
+  "contract_address": "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828",
+  "filePath": "./Ledger-Eth-1",
+  "hd_path": "44'/60'/0'/1",
+  "signerAddress": "0xe1f3c653248de6894d683cb2f10de7ca2253046f"
+}
