@@ -1,9 +1,8 @@
 {
   "web3url":"https://mainnet.infura.io/v3/<your infura key>",
-  "startingNonce": 1,
-  "gasPrice": 150000000000,
   "gasLimit": 500000,
   "contract_address": "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828",
   "filePath": "./Ledger-Eth-1",
-  "hd_path": "44'/60'/0'/0/0"
+  "hd_path": "44'/60'/0'/0/0",
+  "signerAddress": "0x your signer address"
 }
