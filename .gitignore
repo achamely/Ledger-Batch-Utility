@@ -11,3 +11,4 @@ DASH
 yarn.lock
 yarn-error.log
 dbdata
+ethConfig.json
