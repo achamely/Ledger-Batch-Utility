@@ -6,9 +6,13 @@ cp ethConfig.json.example ethConfig.json
 
 Update ethConfig.json and fill in infura url (used for broadcasting)
 
-Update ethConfig.json and specify the fil to read the tx list from (or use the default Ledger-Eth-1)
+Update ethConfig.json and fill in signing address
 
-Update ethConfig.json and enter the startingNonce (or pass it in at command line)
+Update ethConfig.json and fill in contract address (used only for confirm tx right now)
+
+Update ethConfig.json and specify the file to read the tx list from or pass filename as first argument 
+
+startingNonce and gasprice are pulled from blockchain
 
 
 Usage: 
