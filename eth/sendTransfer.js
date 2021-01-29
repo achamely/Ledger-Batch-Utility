@@ -32,8 +32,8 @@ if (myArgs.length > 0) {
 
 const txs = fs.readFileSync(filePath).toString().split('\n').filter(Boolean)
 
-//const gasPrice = '0x'+config.gasPrice.toString(16)
 let gasPrice
+//const gasPrice = '0x'+config.gasPrice.toString(16)
 const gasLimit = '0x'+config.gasLimit.toString(16)
 const contract_address = config.contract_address
 //const amount = config.amount
@@ -176,7 +176,11 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
         url: 'https://ethgasstation.info/json/ethgasAPI.json',
         json: true
       })
-    gasPrice = ethGasStationData.fast * 10 ** 8
+    if (config.gasPrice === 'undefined' || config.gasPrice === null || config.gasPrice == 0) {
+      gasPrice = ethGasStationData.fast * 10 ** 8
+    } else {
+      gasPrice = '0x'+config.gasPrice.toString(16)
+    }
     let nonce = await web3.eth.getTransactionCount(config.signerAddress)
     console.log('nonce, gasPrice:')
     console.log(nonce, gasPrice)
