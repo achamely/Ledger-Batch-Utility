@@ -1,5 +1,7 @@
+//call node confirmTransaction <file-of-txs-to-process>
 'use strict'
 
+const myArgs = process.argv.slice(2)
 const config = require('./ethConfig.json')
 
 const Web3 = require('web3')
@@ -8,13 +10,24 @@ const web3 = new Web3(new Web3.providers.HttpProvider(config.web3url))
 const Transport = require('@ledgerhq/hw-transport-node-hid').default
 const AppEth = require('@ledgerhq/hw-app-eth').default
 const EthereumTx = require('ethereumjs-tx').Transaction
+const request = require('request-promise')
 
 const { createInterface } = require('readline')
 const rl = createInterface(process.stdin, process.stdout)
 
 const fs = require('fs')
-const txs = fs.readFileSync(config.filePath).toString().split('\n').filter(Boolean)
-const gasPrice = '0x'+config.gasPrice.toString(16)
+
+let filePath
+if (myArgs.length > 0) {
+  filePath = myArgs[0]
+} else {
+  filePath = config.filePath
+}
+
+const txs = fs.readFileSync(filePath).toString().split('\n').filter(Boolean)
+
+//const gasPrice = '0x'+config.gasPrice.toString(16)
+let gasPrice
 const gasLimit = '0x'+config.gasLimit.toString(16)
 const contract_address = config.contract_address
 //const amount = config.amount
@@ -51,7 +64,7 @@ function getTxHex (nonce, data) {
   txo.raw[7] = Buffer.from([]); // r
   txo.raw[8] = Buffer.from([]); // s
 
-  return txo	
+  return txo
 }
 
 const sign = async function (ledger, tx, nonce) {
@@ -107,16 +120,6 @@ async function broadcast (signedtx) {
   })
 }
 
-
-if (process.argv.length > 2) {
-  var nonce = parseInt(process.argv[2])
-  config.startingNonce = nonce
-  console.log("Using NONCE from Command Line: \x1b[32m%s\x1b[0m",nonce)
-} else {
-  var nonce = config.startingNonce
-  console.log("Using NONCE from config file: \x1b[32m%s\x1b[0m",nonce)
-}
-
 console.log('Config:')
 console.log(config)
 console.log('txs:')
@@ -131,12 +134,20 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
   console.log('Initializing....')
 
   try {
+    const ethGasStationData = await request
+      .get({
+        url: 'https://ethgasstation.info/json/ethgasAPI.json',
+        json: true
+      })
+    gasPrice = ethGasStationData.fast * 10 ** 8
+    let nonce = await web3.eth.getTransactionCount(config.signerAddress)
+    console.log('nonce, gasPrice:')
+    console.log(nonce, gasPrice)
+
     const ledger = await createLedger()
     try {
       for (const tx of txs) {
-        //var txo = await buildandsign(ledger, tx, nonce)
         await sign(ledger, tx, nonce)
-        //await broadcast(txo)
         nonce++
       }
     } catch (err) {
