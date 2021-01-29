@@ -1,5 +1,6 @@
 {
   "web3url":"https://mainnet.infura.io/v3/<your infura key>",
+  "gasPrice": 0, // 0 pulls from blockchain, anything > 0 is used manually 
   "gasLimit": 500000,
   "contract_address": "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828",
   "filePath": "./Ledger-Eth-1",
