@@ -1,6 +1,7 @@
 'use strict'
 
 const config = require('./ethConfig.json')
+const myArgs = process.argv.slice(2)
 
 const Web3 = require('web3')
 const web3 = new Web3(new Web3.providers.HttpProvider(config.web3url))
@@ -13,11 +14,23 @@ const request = require('request-promise')
 const { createInterface } = require('readline')
 const rl = createInterface(process.stdin, process.stdout)
 
+let apikey = config.etherscanApiKey
+
 const fs = require('fs')
-const txs = fs.readFileSync(config.filePath).toString().split('\n').filter(Boolean)
+
+let filePath
+if (myArgs.length > 0) {
+  filePath = myArgs[0]
+} else {
+  filePath = config.filePath
+}
+
+const txs = fs.readFileSync(filePath).toString().split('\n').filter(Boolean)
 
 const gasLimit = '0x' + config.gasLimit.toString(16)
 let gasPrice
+let ethGasStationData
+
 const contractAddress = config.contract_address
 // const amount = config.amount
 const amount = '0x00'
@@ -93,7 +106,7 @@ const sign = async function (ledger, tx, nonce) {
   var txo = getTxHex(nonce, data)
   var rawtx = txo.serialize().toString('hex')
 
-  console.log('\nRequesting Ledger Sign: Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',nonce,tx,data,)
+  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',gasPrice/1e9,nonce,tx,data,)
   try {
     var result = await ledger.signTransaction(config.hd_path, rawtx)
   } catch (err) {
@@ -112,10 +125,89 @@ const sign = async function (ledger, tx, nonce) {
   var signedtx = '0x'+txo.serialize().toString('hex')
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedtx)
 
-  broadcast(signedtx)
+  await broadcastEtherscan(signedtx)
+}
+
+
+async function updateGas () {
+    //const ethGasStationData = await request
+    //  .get({
+    //    url: 'https://ethgasstation.info/json/ethgasAPI.json',
+    //    json: true
+    //  })
+    // < 2 minutes
+    //gasPrice = ethGasStationData.fast * 10 ** 8
+    // < 5 minutes  gasPrice * 90% * 10^8 wei units
+    //gasPrice = ethGasStationData.average * 10 ** 8
+    //gasPrice = ethGasStationData.average * 0.9 * 10 ** 8
+    // < 30 minutes
+    //gasPrice = ethGasStationData.safeLow * 10 ** 8
+
+    ethGasStationData = await request
+      .get({
+        url: 'https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey='+apikey,
+        json: true
+      })
+    if (ethGasStationData.status == 1) {
+      gasPrice = ethGasStationData.result.SafeGasPrice * 10 ** 9
+    } else {
+      if (ethGasStationData.result == "Invalid API Key"){
+        console.log("Invalid Etherscan API Key, fix or remove from config to continue")
+        process.exit(1)
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 4000));
+        await updateGas()
+      }
+    }
 }
 
 async function broadcast (signedtx) {
+    //broadcast final tx
+    console.log("Broadcasting...")
+    try {
+      await web3.eth.sendSignedTransaction(signedtx, async function(err, hash) {
+        if (!err) {
+          console.log(hash);
+        } else {
+          console.log(err);
+        }
+      });
+    } catch (err) {
+      console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+    }
+}
+
+
+async function broadcastEtherscan (signedtx) {
+    //broadcast final tx
+    console.log("Broadcasting...")
+
+    var options = {
+      url: "https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex="+signedtx+"&apikey="+apikey,
+      json: true
+    }
+
+    //var options = {
+    //  uri: "https://api.etherscan.io/api",
+    //  qs: {
+    //    module: 'proxy',
+    //    action: 'eth_sendRawTransaction',
+    //    hex: signedtx,
+    //    apikey: apikey
+    //  },
+    //  json: true
+    //}
+
+    request(options)
+      .then(function (txResult) {
+        console.log(txResult.result);
+      })
+      .catch(function (err) {
+        console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+      });
+}
+
+async function confirmBroadcast (signedtx) {
   return new Promise(function(resolve,reject){
     rl.question('\nConfirm TX information and Broadcast? [y/n]: ', async function (answer) {
       if (answer !== 'y') {
@@ -141,13 +233,13 @@ async function broadcast (signedtx) {
 }
 
 
-if (process.argv.length > 2) {
-  var nonce = parseInt(process.argv[2])
+if (myArgs.length > 1) {
+  var nonce = parseInt(myArgs[1])
   config.startingNonce = nonce
   console.log("Using NONCE from Command Line: \x1b[32m%s\x1b[0m",nonce)
 } else {
   var nonce = config.startingNonce
-  console.log("Using NONCE from config file: \x1b[32m%s\x1b[0m",nonce)
+  console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
 }
 
 console.log('Config:')
@@ -165,22 +257,20 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
 
   try {
     const ledger = await createLedger()
-    const ethGasStationData = await request
-      .get({
-        url: 'https://ethgasstation.info/json/ethgasAPI.json',
-        json: true
-      })
-    gasPrice = ethGasStationData.fast * 10 ** 8
     let nonce = await web3.eth.getTransactionCount(config.signerAddress)
-    console.log(nonce, gasPrice)
+
     try {
       for (const tx of txs) {
+        await updateGas()
         await sign(ledger, tx, nonce)
         nonce++
       }
     } catch (err) {
       console.log(err)
     }
+    //give time for final broadcast to finish
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     console.log('Finished')
     console.log('Closing Ledger...')
     process.exit(1)
