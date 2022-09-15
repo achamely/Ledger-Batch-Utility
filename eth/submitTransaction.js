@@ -126,30 +126,22 @@ const sign = async function (ledger, tx, nonce) {
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedtx)
 
   await broadcastEtherscan(signedtx)
+  await broadcast(signedtx)
 }
 
 
 async function updateGas () {
-    //const ethGasStationData = await request
-    //  .get({
-    //    url: 'https://ethgasstation.info/json/ethgasAPI.json',
-    //    json: true
-    //  })
-    // < 2 minutes
-    //gasPrice = ethGasStationData.fast * 10 ** 8
-    // < 5 minutes  gasPrice * 90% * 10^8 wei units
-    //gasPrice = ethGasStationData.average * 10 ** 8
-    //gasPrice = ethGasStationData.average * 0.9 * 10 ** 8
-    // < 30 minutes
-    //gasPrice = ethGasStationData.safeLow * 10 ** 8
-
     ethGasStationData = await request
       .get({
         url: 'https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey='+apikey,
         json: true
       })
     if (ethGasStationData.status == 1) {
-      gasPrice = ethGasStationData.result.SafeGasPrice * 10 ** 9
+      //gasPrice = ethGasStationData.result.SafeGasPrice * 10 ** 9
+      //gasPrice = ethGasStationData.result.FastGasPrice * 10 ** 9
+
+      //add a little buffer over api to handle slippage
+      gasPrice = (ethGasStationData.result.FastGasPrice * 1 + 10) * 10 ** 9
     } else {
       if (ethGasStationData.result == "Invalid API Key"){
         console.log("Invalid Etherscan API Key, fix or remove from config to continue")

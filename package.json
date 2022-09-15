@@ -10,11 +10,13 @@
   "license": "ISC",
   "dependencies": {
     "@ledgerhq/hw-app-btc": "^5.17.0",
+    "@ledgerhq/hw-app-trx": "^6.27.4",
     "@ledgerhq/hw-transport-node-hid": "^5.17.0",
     "@ledgerhq/hw-transport-node-hid-noevents": "^5.19.1",
     "@ledgerhq/ledger-core": "^6.7.1",
     "@ledgerhq/live-common": "^13.5.0",
     "ethereumjs-tx": "^2.1.2",
+    "tronweb": "^4.3.0",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "react-redux": "^7.2.0",

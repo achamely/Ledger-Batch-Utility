@@ -1,0 +1,9 @@
+{
+  "fullHostURL":"https://api.trongrid.io",
+  "trongridApiKey":"YOUR-API-KEY",
+  "feeLimit": 1000000000,
+  "contract_address": "TBPxhVAsuzoFnKyXtc1o2UySEydPHgATto",
+  "filePath": "tx.recoveries",
+  "hd_path": "44'/195'/0'/0/0",
+  "signerAddress": "Your-Signing-Address"
+}

@@ -95,7 +95,23 @@ const sign = async function (ledger, tx, nonce) {
   await broadcast(signedtx);
 }
 
-async function broadcast (signedtx) {
+async function broadcast(signedtx) {
+    //broadcast final tx
+    console.log("Broadcasting...")
+    try {
+      await web3.eth.sendSignedTransaction(signedtx, function(err, hash) {
+        if (!err) {
+          console.log(hash);
+        } else {
+          console.log(err);
+        }
+      });
+    } catch (err) {
+      console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+    }
+}
+
+async function confirmBroadcast (signedtx) {
   return new Promise(function(resolve,reject){
     rl.question('\nConfirm TX information and Broadcast? [y/n]: ', async function (answer) {
       if (answer !== 'y') {
