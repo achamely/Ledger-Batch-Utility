@@ -5,10 +5,13 @@ const myArgs = process.argv.slice(2)
 const config = require('./tronConfig.json')
 
 const TronWeb = require('tronweb')
-const tronWeb = new TronWeb({
-    fullHost: config.fullHostURL,
-    headers: { "TRON-PRO-API-KEY": config.trongridApiKey },
-});
+const tronWebOptions = {
+  fullHost: config.fullHostURL
+}
+if (!(config.trongridApiKey === null || config.trongridApiKey.trim() === '')) {
+  tronWebOptions.headers = { "TRON-PRO-API-KEY": config.trongridApiKey }
+}
+const tronWeb = new TronWeb(tronWebOptions);
 
 const Transport = require('@ledgerhq/hw-transport-node-hid').default
 const AppTrx = require('@ledgerhq/hw-app-trx').default
