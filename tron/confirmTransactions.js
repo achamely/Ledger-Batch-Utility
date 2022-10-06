@@ -88,7 +88,7 @@ const sign = async function (ledger, tx) {
     return
   }
 
-  await broadcast(signedtx);
+  await broadcast(txo.transaction);
 }
 
 async function broadcast (signedtx) {
