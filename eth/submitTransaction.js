@@ -75,8 +75,11 @@ const sign = async function (ledger, tx, nonce) {
     case 'USDT':
       token = 'dac17f958d2ee523a2206206994597c13d831ec7'
       break
+    case 'EURT':
+      token = 'C581b735A1688071A1746c968e0798D642EDE491'
+      break
     case 'XAUT':
-      token = '4922a015c4407f87432b179bb209e125432e4a2a'
+      token = '68749665ff8d2d112fa859aa293f07a622782f38'
       break
   }
 
@@ -90,14 +93,40 @@ const sign = async function (ledger, tx, nonce) {
     case 'transfer':
       instruction = 'a9059cbb' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(parseInt(args[3]).toString(16))
       break
+    case 'mint':
+      instruction = '40c10f19' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(parseInt(args[3]).toString(16))
+      break;
     case 'freeze':
-      instruction = '0ecb93c0000000000000000000000000' + args[2].substr(2).toLowerCase()
+      if (args[0] == 'USDT') {
+        //addBlackList
+        instruction = '0ecb93c0' + padLeftZeros(args[2].substr(2).toLowerCase())
+      } else {
+        //addToBlockedList
+        instruction = '3c7c9b90' + padLeftZeros(args[2].substr(2).toLowerCase())
+      }
       break
     case 'unfreeze':
-      instruction = 'e4997dc5000000000000000000000000' + args[2].substr(2).toLowerCase()
+      if (args[0] == 'USDT') {
+        //removeBlackList
+        instruction = 'e4997dc5' + padLeftZeros(args[2].substr(2).toLowerCase())
+      } else {
+        //removeFromBlockedList
+        instruction = '1a14f449' + padLeftZeros(args[2].substr(2).toLowerCase())
+      }
       break
     case 'destroy':
-      instruction = 'f3bdc228000000000000000000000000' + args[2].substr(2).toLowerCase()
+      if (args[0] == 'USDT') {
+        //destroyBlackFunds
+        instruction = 'f3bdc228' + padLeftZeros(args[2].substr(2).toLowerCase())
+      } else {
+        //destroyBlockedFunds
+        instruction = '0e27a385' + padLeftZeros(args[2].substr(2).toLowerCase())
+      }
+      break
+    case 'proxy-upgrade':
+      let proxyAddr =  padLeftZeros(args[2].substr(2).toLowerCase())
+      let implimentationAddr =  padLeftZeros(args[3].substr(2).toLowerCase())
+      instruction = '99a88ec4' +  padLeftZeros(proxyAddr) + padLeftZeros(implimentationAddr)
       break
   }
   // for a transfer needs to be 44 instead of 24

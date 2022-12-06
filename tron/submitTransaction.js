@@ -12,6 +12,8 @@ if (!(config.trongridApiKey === null || config.trongridApiKey.trim() === '')) {
 }
 const tronWeb = new TronWeb(tronWebOptions);
 
+tronWeb.setAddress(config.contract_address);
+
 const Transport = require('@ledgerhq/hw-transport-node-hid').default
 const AppTrx = require('@ledgerhq/hw-app-trx').default
 const request = require('request-promise')
@@ -59,9 +61,27 @@ const getTxHex = async function (dest,data) {
 const sign = async function (ledger, tx) {
   const args = tx.split(' ')
   let token, instruction, encodedAddr
+
+  if (['/','#'].includes(args[0][0])) {
+    //comment skip line
+    return
+  }
+
   switch (args[0]) {
     case 'USDT':
       token = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+      break
+    case 'CNHT':
+      token = 'TCfCGjekyqmdYt1yxfUM5v5SDtaY6tuWik'
+      break
+    case 'MXNT':
+      token = 'TDp7Kbp6ajeWeQN9J57Vnw4WyQdKpuARDF'
+      break
+    case 'XAUT':
+      token = 'TQdCxWJSzJJX7CcTzS7suoX7yTjStGJFru'
+      break
+    case 'ProxyAdmin':
+      token = 'TCCf77hjPZVXBaeGFv39h5oBMKd2z1D69b'
       break
   }
 
@@ -76,17 +96,44 @@ const sign = async function (ledger, tx) {
       encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
       instruction = 'a9059cbb' + padLeftZeros(encodedAddr) + padLeftZeros(parseInt(args[3]).toString(16))
       break
+    case 'mint':
+      encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
+      instruction = '40c10f19' + padLeftZeros(encodedAddr) + padLeftZeros(parseInt(args[3]).toString(16))
+      break;
     case 'freeze':
       encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
-      instruction = '0ecb93c0' +  padLeftZeros(encodedAddr)
+      if (args[0] == 'USDT') {
+        //addBlackList
+        instruction = '0ecb93c0' + padLeftZeros(encodedAddr)
+      } else {
+        //addToBlockedList
+        instruction = '3c7c9b90' + padLeftZeros(encodedAddr)
+      }
       break
     case 'unfreeze':
       encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
-      instruction = 'e4997dc5' +  padLeftZeros(encodedAddr)
+      if (args[0] == 'USDT') {
+        //removeBlackList
+        instruction = 'e4997dc5' + padLeftZeros(encodedAddr)
+      } else {
+        //removeFromBlockedList
+        instruction = '1a14f449' + padLeftZeros(encodedAddr)
+      }
       break
     case 'destroy':
       encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
-      instruction = 'f3bdc228' +  padLeftZeros(encodedAddr)
+      if (args[0] == 'USDT') {
+        //destroyBlackFunds
+        instruction = 'f3bdc228' + padLeftZeros(encodedAddr)
+      } else {
+        //destroyBlockedFunds
+        instruction = '0e27a385' + padLeftZeros(encodedAddr)
+      }
+      break
+    case 'proxy-upgrade':
+      let proxyAddr = tronWeb.address.toHex(args[2]).toLowerCase()
+      let implimentationAddr = tronWeb.address.toHex(args[3]).toLowerCase()
+      instruction = '99a88ec4' +  padLeftZeros(proxyAddr) + padLeftZeros(implimentationAddr)
       break
   }
   const data = `0x${instruction}`
@@ -152,6 +199,9 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
   }
 
   console.log('Initializing....')
+  let msigContract = await tronWeb.contract().at(contractAddress);
+  let res = await msigContract.transactionCount().call()
+  let cMax = parseInt(res)
 
   try {
     const ledger = await createLedger()
@@ -163,9 +213,15 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
     } catch (err) {
       console.log(err)
     }
+
+    let nRes = await msigContract.transactionCount().call()
+    let nMax = parseInt(nRes) - 1
+
     //give time for final broadcast to finish
     await new Promise(resolve => setTimeout(resolve, 2000));
 
+
+    console.log('MSIG Txs:',cMax,nMax,'created')
     console.log('Finished')
     console.log('Closing Ledger...')
     process.exit(1)
