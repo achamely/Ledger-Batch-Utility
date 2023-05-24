@@ -81,6 +81,9 @@ const sign = async function (ledger, tx, nonce) {
     case 'XAUT':
       token = '68749665ff8d2d112fa859aa293f07a622782f38'
       break
+    case 'ADMIN':
+      token = 'C6CDE7C39eB2f0F0095F41570af89eFC2C1Ea828'
+      break
   }
 
   switch (args[1]) {
@@ -127,6 +130,30 @@ const sign = async function (ledger, tx, nonce) {
       let proxyAddr =  padLeftZeros(args[2].substr(2).toLowerCase())
       let implimentationAddr =  padLeftZeros(args[3].substr(2).toLowerCase())
       instruction = '99a88ec4' +  padLeftZeros(proxyAddr) + padLeftZeros(implimentationAddr)
+      break
+    case 'addOwner':
+      if (args[0] == 'ADMIN') {
+        instruction = '7065cb48' + padLeftZeros(args[2].substr(2).toLowerCase())
+      } else {
+        console.log('Admin function called on non Admin Contract')
+        return
+      }
+      break
+    case 'removeOwner':
+      if (args[0] == 'ADMIN') {
+        instruction = '173825d9' + padLeftZeros(args[2].substr(2).toLowerCase())
+      } else {
+        console.log('Admin function called on non Admin Contract')
+        return
+      }
+      break
+    case 'replaceOwner':
+      if (args[0] == 'ADMIN') {
+        instruction = 'e20056e6' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(args[3].substr(2).toLowerCase())
+      } else {
+        console.log('Admin function called on non Admin Contract')
+        return
+      }
       break
   }
   // for a transfer needs to be 44 instead of 24
@@ -208,17 +235,6 @@ async function broadcastEtherscan (signedtx) {
       json: true
     }
 
-    //var options = {
-    //  uri: "https://api.etherscan.io/api",
-    //  qs: {
-    //    module: 'proxy',
-    //    action: 'eth_sendRawTransaction',
-    //    hex: signedtx,
-    //    apikey: apikey
-    //  },
-    //  json: true
-    //}
-
     request(options)
       .then(function (txResult) {
         console.log(txResult.result);
@@ -282,9 +298,11 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
 
     try {
       for (const tx of txs) {
-        await updateGas()
-        await sign(ledger, tx, nonce)
-        nonce++
+        if (tx[0] != "#") {
+          await updateGas()
+          await sign(ledger, tx, nonce)
+          nonce++
+        }
       }
     } catch (err) {
       console.log(err)
