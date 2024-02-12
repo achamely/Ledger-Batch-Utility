@@ -1,15 +1,35 @@
 'use strict'
 
+const FeeMarketEIP1559Transaction = require('@ethereumjs/tx').FeeMarketEIP1559Transaction
+const bytesToHex = require('@ethereumjs/util').bytesToHex
+const AppEth = require('@ledgerhq/hw-app-eth').default
+
+const Chain = require('@ethereumjs/common').Chain
+const Hardfork = require('@ethereumjs/common').Hardfork
+const Common  = require('@ethereumjs/common').default
+
+//Default Ethereum Mainnet = 1
+const chainId = Chain.Mainnet
+
+const common = new Common({ chain: chainId, hardfork: Hardfork.London, eips: [1559]})
+
 const config = require('./ethConfig.json')
 const myArgs = process.argv.slice(2)
 
-const Web3 = require('web3')
+const Web3 = require('web3').Web3
 const web3 = new Web3(new Web3.providers.HttpProvider(config.web3url))
 
 const Transport = require('@ledgerhq/hw-transport-node-hid').default
-const AppEth = require('@ledgerhq/hw-app-eth').default
-const EthereumTx = require('ethereumjs-tx').Transaction
 const request = require('request-promise')
+
+const ledgerService = require('@ledgerhq/hw-app-eth').ledgerService
+
+const createLedger = async () => {
+  console.log('Ledger initialized')
+  const transport = await Transport.create()
+  return new AppEth(transport)
+}
+
 
 const { createInterface } = require('readline')
 const rl = createInterface(process.stdin, process.stdout)
@@ -27,80 +47,94 @@ if (myArgs.length > 0) {
 
 const txs = fs.readFileSync(filePath).toString().split('\n').filter(Boolean)
 
-const gasLimit = '0x' + config.gasLimit.toString(16)
+const gasLimit = config.gasLimit
 let gasPrice
+let maxFeePerGas
 let ethGasStationData
 
-const contract_address = config.contract_address
-//const amount = config.amount
-const amount = '0x00'
+const contractAddress = config.contract_address
 
 //= =============
-const createLedger = async () => {
-  console.log('Ledger initialized')
-  const transport = await Transport.create()
-  return new AppEth(transport)
-}
-
-
 function padLeftZeros (stringItem) {
   return new Array(64 - stringItem.length + 1).join('0') + stringItem
 }
 
-function getTxHex (nonce, data) {
-  var txParams = {
-    nonce: '0x'+nonce.toString(16),
-    gasPrice: gasPrice,
-    gasLimit: gasLimit,
-    to: contract_address,
-    value: amount,
+function getTxData (nonce, data) {
+
+  var txData = {
     data: data,
+    nonce: web3.utils.toHex(nonce),
+    gasLimit: web3.utils.toHex(gasLimit),
+    maxPriorityFeePerGas: web3.utils.toHex(gasPrice),
+    maxFeePerGas: web3.utils.toHex(maxFeePerGas),
+    to: contractAddress,
+    value: '0x00',
+    r: web3.utils.toHex(chainId),
+    v: '0x',
+    s: '0x',
+    //type: '0x02'
   }
 
-  var networkId = 1 //'mainnet'
-
-  var txo = new EthereumTx(txParams, { chain: networkId})
-
-  // Set the EIP155 bits
-  txo.raw[6] = Buffer.from([networkId]); // v
-  txo.raw[7] = Buffer.from([]); // r
-  txo.raw[8] = Buffer.from([]); // s
-
-  return txo
+  return txData
 }
 
 const sign = async function (ledger, tx, nonce) {
-  // construct the data packet for confirming a tx
   var data = '0xc01a8c84' + padLeftZeros(parseInt(tx).toString(16))
-  var txo = getTxHex(nonce, data)
-  var rawtx = txo.serialize().toString('hex')
+  var txData = getTxData(nonce, data)
+  var txo = FeeMarketEIP1559Transaction.fromTxData(txData, { common })
+  var rawtx = txo.getMessageToSign()
 
-  console.log('\nRequesting Ledger Sign: Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',nonce,tx,data,)
+  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',gasPrice,parseInt(nonce),tx,data,)
+  let result
   try {
-    var result = await ledger.signTransaction(config.hd_path, rawtx)
+/*
+      let loadConfig={
+      nftExplorerBaseURL: "https://nft.api.live.ledger.com/v1/ethereum",
+      pluginBaseURL: "https://cdn.live.ledger.com",
+      extraPlugins: null,
+      cryptoassetsBaseURL: "https://cdn.live.ledger.com/cryptoassets",
+    }
+    let resolutionConfig = {
+      nft: true,
+      erc20: true,
+      externalPlugins: true,
+    };
+    let resolution = {
+      nfts: [],
+      erc20Tokens: [],
+      externalPlugin: [],
+      plugin: [],
+      domains: []
+    }
+*/
+    const resolution = await ledgerService.resolveTransaction( bytesToHex(rawtx).substring(2),{},{})
+    result = await ledger.signTransaction(config.hd_path, rawtx, resolution)
+    //console.log(result)
   } catch (err) {
     console.log("Sign Operation Error: \x1b[32m%s\x1b[0m",err.message)
     return
   }
 
   // Store signature in transaction
-  txo.v = Buffer.from(result.v, "hex");
-  txo.r = Buffer.from(result.r, "hex");
-  txo.s = Buffer.from(result.s, "hex");
+  txData['v'] = '0x'+result['v']
+  txData['r'] = '0x'+result['r']
+  txData['s'] = '0x'+result['s']
+  var signedTx = FeeMarketEIP1559Transaction.fromTxData(txData, { common })
 
   console.log('---------------Begin Verification Checks---------------')
-  console.log('Sending Address: \x1b[32m%s\x1b[0m','0x'+txo.getSenderAddress().toString('hex'))
-  console.log('Valid Signature:',txo.verifySignature(),', Valid Gas Estimates:',txo.validate())
-  var signedtx = '0x'+txo.serialize().toString('hex')
-  console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedtx)
+  console.log('Sending Address: \x1b[32m%s\x1b[0m',signedTx.getSenderAddress().toString('hex'))
+  //console.log('Valid Signature:',signedTx.verifySignature(),', Valid Gas Estimates:',signedTx.isValid())
+  console.log('Valid Signature:',signedTx.verifySignature())
+  var signedHex = bytesToHex(signedTx.serialize())
+  console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
-  await broadcastEtherscan(signedtx)
-  await broadcast(signedtx);
+  await broadcastEtherscan(signedHex)
+  await broadcast(signedHex)
 }
 
+
 async function updateGas () {
-    ethGasStationData = await request
-      .get({
+    ethGasStationData = await request.get({
         url: 'https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey='+apikey,
         json: true
       })
@@ -109,7 +143,12 @@ async function updateGas () {
       //gasPrice = ethGasStationData.result.FastGasPrice * 10 ** 9
 
       //add a little buffer over api to handle slippage
-      gasPrice = (ethGasStationData.result.FastGasPrice * 1 + 10) * 10 ** 9
+      //gasPrice = (ethGasStationData.result.FastGasPrice * 1 + 10) * 10 ** 9
+      gasPrice = parseInt(ethGasStationData.result.FastGasPrice) - parseInt(ethGasStationData.result.ProposeGasPrice)
+      maxFeePerGas = ((parseInt(ethGasStationData.result.suggestBaseFee) * 2) + gasPrice) * 10e8
+      if (gasPrice < 2) {
+        gasPrice = 2
+      }
     } else {
       if (ethGasStationData.result == "Invalid API Key"){
         console.log("Invalid Etherscan API Key, fix or remove from config to continue")
@@ -121,11 +160,11 @@ async function updateGas () {
     }
 }
 
-async function broadcast(signedtx) {
+async function broadcast (signedtx) {
     //broadcast final tx
     console.log("Broadcasting...")
     try {
-      await web3.eth.sendSignedTransaction(signedtx, function(err, hash) {
+      await web3.eth.sendSignedTransaction(signedtx, async function(err, hash) {
         if (!err) {
           console.log(hash);
         } else {
@@ -133,9 +172,12 @@ async function broadcast(signedtx) {
         }
       });
     } catch (err) {
-      console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+      if (!err.message.includes("already known")) {
+        console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err.message)
+      }
     }
 }
+
 
 async function broadcastEtherscan (signedtx) {
     //broadcast final tx
@@ -154,7 +196,6 @@ async function broadcastEtherscan (signedtx) {
         console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
       });
 }
-
 
 async function confirmBroadcast (signedtx) {
   return new Promise(function(resolve,reject){
@@ -196,7 +237,10 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
 
   try {
     const ledger = await createLedger()
-    let nonce = await web3.eth.getTransactionCount(config.signerAddress)
+    let signer = await ledger.getAddress(config.hd_path)
+    let nonce = await web3.eth.getTransactionCount(signer.address)
+    console.log("Signing Address:", signer.address)
+    console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
 
     try {
       for (const tx of txs) {

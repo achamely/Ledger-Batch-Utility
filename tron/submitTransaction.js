@@ -168,6 +168,7 @@ const sign = async function (ledger, tx) {
     return
   }
 
+  //console.log(txo.transaction);
   await broadcast(txo.transaction)
 }
 

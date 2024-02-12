@@ -1,7 +1,6 @@
 {
   "web3url":"https://mainnet.infura.io/v3/<your infura key>",
   "etherscanApiKey":"your-api-key",
-  "gasPrice": 10,
   "gasLimit": 250000,
   "contract_address": "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828",
   "filePath": "./tx.recoveries",

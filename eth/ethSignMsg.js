@@ -2,7 +2,7 @@
 
 const Transport = require('@ledgerhq/hw-transport-node-hid').default
 const AppEth = require('@ledgerhq/hw-app-eth').default
-const config = require('./config.json')
+const config = require('./ethConfig.json')
 //= =============
 const createLedger = async () => {
   const transport = await Transport.create()
@@ -11,12 +11,12 @@ const createLedger = async () => {
 
 const sign = async (ledger, msg) => {
   console.log('Requesting to sign')
+  let addr = await ledger.getAddress(config.hd_path)
+  console.log('From:', addr.address)
   const result = await ledger.signPersonalMessage(config.hd_path, msg)
-  console.log('Signed: ')
-  console.log(result)
-  const v = result.v + 27 + 4
-  const signature = Buffer.from(v.toString(16) + result.r + result.s, 'hex').toString('base64')
-  console.log('Signature : ' + signature)
+  console.log('Message:', Buffer.from(msg,'hex').toString())
+  const signature = '0x' + result.r + result.s + result.v.toString(16)
+  console.log('Signature:', signature)
   return signature
 }
 
