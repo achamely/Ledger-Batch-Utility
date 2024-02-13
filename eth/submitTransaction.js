@@ -228,11 +228,6 @@ async function updateGas () {
         json: true
       })
     if (ethGasStationData.status == 1) {
-      //gasPrice = ethGasStationData.result.SafeGasPrice * 10 ** 9
-      //gasPrice = ethGasStationData.result.FastGasPrice * 10 ** 9
-
-      //add a little buffer over api to handle slippage
-      //gasPrice = (ethGasStationData.result.FastGasPrice * 1 + 10) * 10 ** 9
       gasPrice = parseInt(ethGasStationData.result.FastGasPrice) - parseInt(ethGasStationData.result.ProposeGasPrice)
       maxFeePerGas = ((parseInt(ethGasStationData.result.suggestBaseFee) * 2) + gasPrice) * 10e8
       if (gasPrice < 2) {
