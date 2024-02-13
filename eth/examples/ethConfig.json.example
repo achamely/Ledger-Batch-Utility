@@ -4,6 +4,5 @@
   "gasLimit": 250000,
   "contract_address": "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828",
   "filePath": "./tx.recoveries",
-  "hd_path": "44'/60'/0'/0/0",
-  "signerAddress": "0x your signer address"
+  "hd_path": "44'/60'/0'/0/0"
 }
