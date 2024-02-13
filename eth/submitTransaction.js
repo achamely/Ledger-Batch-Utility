@@ -320,6 +320,12 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
   console.log('Initializing....')
 
   try {
+    const adminAbi = await request.get({
+      url: 'https://api.etherscan.io/api?module=contract&action=getabi&address='+contractAddress+'&apikey='+apikey,
+      json: true
+    })
+    const adminContract = new web3.eth.Contract(JSON.parse(adminAbi.result),contractAddress)
+    let txCountS = parseInt(await adminContract.methods.transactionCount().call())
     const ledger = await createLedger()
     let signer = await ledger.getAddress(config.hd_path)
     let nonce = await web3.eth.getTransactionCount(signer.address)
@@ -339,9 +345,10 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
     }
     //give time for final broadcast to finish
     await new Promise(resolve => setTimeout(resolve, 2000));
-
-    console.log('Finished')
+    let txCountF = parseInt(await adminContract.methods.transactionCount().call())
     console.log('Closing Ledger...')
+    console.log('Finished')
+    console.log('Msig txs: ',txCountS,' - ',txCountF-1,' ready')
     process.exit(1)
   } catch (err) {
     console.log(err)
