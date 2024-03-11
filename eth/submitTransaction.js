@@ -219,7 +219,7 @@ const sign = async function (ledger, tx, nonce) {
 
   console.log("Broadcasting...")
   await broadcastEtherscan(signedHex)
-  //await broadcast(signedHex)
+  await broadcast(signedHex)
   //await broadcastFlashbot(signedHex)
 }
 
