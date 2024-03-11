@@ -6,7 +6,7 @@ const AppEth = require('@ledgerhq/hw-app-eth').default
 
 const Chain = require('@ethereumjs/common').Chain
 const Hardfork = require('@ethereumjs/common').Hardfork
-const Common  = require('@ethereumjs/common').default
+const Common  = require('@ethereumjs/common').Common
 
 //Default Ethereum Mainnet = 1
 const chainId = Chain.Mainnet
@@ -217,8 +217,10 @@ const sign = async function (ledger, tx, nonce) {
   var signedHex = bytesToHex(signedTx.serialize())
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
+  console.log("Broadcasting...")
   await broadcastEtherscan(signedHex)
-  await broadcast(signedHex)
+  //await broadcast(signedHex)
+  //await broadcastFlashbot(signedHex)
 }
 
 
@@ -244,9 +246,34 @@ async function updateGas () {
     }
 }
 
+async function broadcastFlashbot (signedtx) {
+  var jsonBody = {
+    jsonrpc: "2.0",
+    method: "eth_sendRawTransaction",
+    params: [signedtx],
+    id: 1
+  }
+
+  var options = {
+    headers: {'content-type' : 'application/json'},
+    url: "https://rpc.flashbots.net/fast",
+    body: jsonBody,
+    json: true
+  }
+
+  request.post(options).then(function (txResult) {
+    if (txResult.error) {
+      console.log("Error: ",txResult.error.message)
+    } else {
+      console.log(txResult.result);
+    }
+  }).catch(function (err) {
+    console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+  });
+}
+
 async function broadcast (signedtx) {
     //broadcast final tx
-    console.log("Broadcasting...")
     try {
       await web3.eth.sendSignedTransaction(signedtx, async function(err, hash) {
         if (!err) {
@@ -265,8 +292,6 @@ async function broadcast (signedtx) {
 
 async function broadcastEtherscan (signedtx) {
     //broadcast final tx
-    console.log("Broadcasting...")
-
     var options = {
       url: "https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex="+signedtx+"&apikey="+apikey,
       json: true

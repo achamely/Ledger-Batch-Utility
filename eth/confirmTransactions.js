@@ -6,7 +6,7 @@ const AppEth = require('@ledgerhq/hw-app-eth').default
 
 const Chain = require('@ethereumjs/common').Chain
 const Hardfork = require('@ethereumjs/common').Hardfork
-const Common  = require('@ethereumjs/common').default
+const Common  = require('@ethereumjs/common').Common
 
 //Default Ethereum Mainnet = 1
 const chainId = Chain.Mainnet
