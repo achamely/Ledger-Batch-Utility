@@ -1,0 +1,10 @@
+{
+  "web3url":"https://avalanche-mainnet.infura.io/v3/<INFURA_KEY>",
+  "etherscanApiKey":"",
+  "gasPrice": 10,
+  "gasLimit": 250000,
+  "contract_address": "0xD83d5C96BfB9e5F890E8Be48165b13dDB0eCd2Aa",
+  "filePath": "./tornado.freeze",
+  "hd_path": "44'/60'/0'/0/0",
+  "signerAddress": ""
+}
