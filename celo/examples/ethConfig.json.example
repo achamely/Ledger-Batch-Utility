@@ -1,0 +1,10 @@
+{
+  "web3url":"https://celo-mainnet.infura.io/v3/<INFURA_KEY>",
+  "etherscanApiKey":"",
+  "gasPrice": 10,
+  "gasLimit": 250000,
+  "contract_address": "0xBA2a995Bd4ab9e605454cCEf88169352cd5F75A6",
+  "filePath": "./tx.freeze",
+  "hd_path": "44'/60'/0'/0/0",
+  "signerAddress": ""
+}

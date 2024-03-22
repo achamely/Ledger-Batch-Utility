@@ -11,7 +11,7 @@ const Common  = require('@ethereumjs/common').Common
 const RLP = require('@ethereumjs/rlp')
 
 //Default Ethereum Mainnet = 1
-const chainId = 43114
+const chainId = 42220
 //const common = new Common({ chain: chainId, hardfork: Hardfork.London, eips: [1559]})
 const common = Common.custom({ chainId: chainId})
 
@@ -80,84 +80,8 @@ function getTxData (nonce, data) {
 }
 
 const sign = async function (ledger, tx, nonce) {
-  const args = tx.split(' ')
-  let token, instruction
-  switch (args[0]) {
-    case 'USDT':
-      token = '9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7'
-      break
-    case 'EURT':
-      token = ''
-      break
-    case 'XAUT':
-      token = ''
-      break
-    case 'ADMIN':
-      token = 'D83d5C96BfB9e5F890E8Be48165b13dDB0eCd2Aa'
-      break
-  }
-
-  switch (args[1]) {
-    case 'issue':
-      //instruction = 'cc872b66' + padLeftZeros(parseInt(args[2]).toString(16))
-      console.log('Note: avalanche uses "mint dst-address amount"')
-      return
-      break
-    case 'redeem':
-      instruction = 'db006a75' + padLeftZeros(parseInt(args[2]).toString(16))
-      break
-    case 'transfer':
-      instruction = 'a9059cbb' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(parseInt(args[3]).toString(16))
-      break
-    case 'mint':
-      instruction = '40c10f19' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(parseInt(args[3]).toString(16))
-      break;
-    case 'freeze':
-      //addToBlockedList
-      instruction = '3c7c9b90' + padLeftZeros(args[2].substr(2).toLowerCase())
-      break
-    case 'unfreeze':
-      //removeFromBlockedList
-      instruction = '1a14f449' + padLeftZeros(args[2].substr(2).toLowerCase())
-      break
-    case 'destroy':
-      //destroyBlockedFunds
-      instruction = '0e27a385' + padLeftZeros(args[2].substr(2).toLowerCase())
-      break
-    case 'proxy-upgrade':
-      let proxyAddr =  padLeftZeros(args[2].substr(2).toLowerCase())
-      let implimentationAddr =  padLeftZeros(args[3].substr(2).toLowerCase())
-      instruction = '99a88ec4' +  padLeftZeros(proxyAddr) + padLeftZeros(implimentationAddr)
-      break
-    case 'addOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = '7065cb48' + padLeftZeros(args[2].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
-      }
-      break
-    case 'removeOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = '173825d9' + padLeftZeros(args[2].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
-      }
-      break
-    case 'replaceOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = 'e20056e6' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(args[3].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
-      }
-      break
-  }
-  // for a transfer needs to be 44 instead of 24
-  //const lengthParam = tx.length > 70 ? 44 : 24
-  const lengthParam = args.length > 3 ? 44 : 24 
-  const data = `0xc6427474000000000000000000000000${token}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000${lengthParam}${instruction}`
+  // construct the data packet for confirming a tx
+  var data = '0xc01a8c84' + padLeftZeros(parseInt(tx).toString(16))
   var txData = getTxData(nonce, data)
   var txo = LegacyTransaction.fromTxData(txData, { common })
   var rawtx = txo.getMessageToSign()
@@ -207,7 +131,7 @@ const sign = async function (ledger, tx, nonce) {
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
   console.log("Broadcasting...")
-  //await broadcastSnowtrace(signedHex)
+  //await broadcastCeloscan(signedHex)
   await broadcast(signedHex)
 }
 
@@ -215,10 +139,10 @@ const sign = async function (ledger, tx, nonce) {
 async function updateGas () {
     ethGasStationData = await request
       .get({
-        url: 'https://api.snowtrace.io/api?module=proxy&action=eth_gasPrice&apikey='+apikey,
+        url: 'https://api.celoscan.io/api?module=proxy&action=eth_gasPrice&apikey='+apikey,
         json: true
       })
-    if (ethGasStationData.id == 1) {
+    if (ethGasStationData.id == 73) {
       //add a little buffer over api to handle slippage
       gasPrice = parseInt(parseInt(ethGasStationData.result) * 1.1)
       //gasPrice = parseInt(ethGasStationData.result)
@@ -251,11 +175,11 @@ async function broadcast (signedtx) {
 }
 
 
-async function broadcastSnowtrace (signedtx) {
+async function broadcastCeloscan (signedtx) {
     //broadcast final tx
 
     var options = {
-      url: "https://api.snowtrace.io/api?module=proxy&action=eth_sendRawTransaction&hex="+signedtx+"&apikey="+apikey,
+      url: "https://api.celoscan.io/api?module=proxy&action=eth_sendRawTransaction&hex="+signedtx+"&apikey="+apikey,
       json: true
     }
 

@@ -11,7 +11,7 @@ const Common  = require('@ethereumjs/common').Common
 const RLP = require('@ethereumjs/rlp')
 
 //Default Ethereum Mainnet = 1
-const chainId = 43114
+const chainId = 42220
 //const common = new Common({ chain: chainId, hardfork: Hardfork.London, eips: [1559]})
 const common = Common.custom({ chainId: chainId})
 
@@ -84,7 +84,7 @@ const sign = async function (ledger, tx, nonce) {
   let token, instruction
   switch (args[0]) {
     case 'USDT':
-      token = '9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7'
+      token = '48065fbBE25f71C9282ddf5e1cD6D6A887483D5e'
       break
     case 'EURT':
       token = ''
@@ -93,14 +93,14 @@ const sign = async function (ledger, tx, nonce) {
       token = ''
       break
     case 'ADMIN':
-      token = 'D83d5C96BfB9e5F890E8Be48165b13dDB0eCd2Aa'
+      token = 'BA2a995Bd4ab9e605454cCEf88169352cd5F75A6'
       break
   }
 
   switch (args[1]) {
     case 'issue':
       //instruction = 'cc872b66' + padLeftZeros(parseInt(args[2]).toString(16))
-      console.log('Note: avalanche uses "mint dst-address amount"')
+      console.log('Note: celo uses "mint dst-address amount"')
       return
       break
     case 'redeem':
@@ -156,7 +156,7 @@ const sign = async function (ledger, tx, nonce) {
   }
   // for a transfer needs to be 44 instead of 24
   //const lengthParam = tx.length > 70 ? 44 : 24
-  const lengthParam = args.length > 3 ? 44 : 24 
+  const lengthParam = args.length > 3 ? 44 : 24
   const data = `0xc6427474000000000000000000000000${token}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000${lengthParam}${instruction}`
   var txData = getTxData(nonce, data)
   var txo = LegacyTransaction.fromTxData(txData, { common })
@@ -207,7 +207,7 @@ const sign = async function (ledger, tx, nonce) {
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
   console.log("Broadcasting...")
-  //await broadcastSnowtrace(signedHex)
+  //await broadcastCeloscan(signedHex)
   await broadcast(signedHex)
 }
 
@@ -215,10 +215,10 @@ const sign = async function (ledger, tx, nonce) {
 async function updateGas () {
     ethGasStationData = await request
       .get({
-        url: 'https://api.snowtrace.io/api?module=proxy&action=eth_gasPrice&apikey='+apikey,
+        url: 'https://api.celoscan.io/api?module=proxy&action=eth_gasPrice&apikey='+apikey,
         json: true
       })
-    if (ethGasStationData.id == 1) {
+    if (ethGasStationData.id == 73) {
       //add a little buffer over api to handle slippage
       gasPrice = parseInt(parseInt(ethGasStationData.result) * 1.1)
       //gasPrice = parseInt(ethGasStationData.result)
@@ -251,11 +251,11 @@ async function broadcast (signedtx) {
 }
 
 
-async function broadcastSnowtrace (signedtx) {
+async function broadcastCeloscan (signedtx) {
     //broadcast final tx
 
     var options = {
-      url: "https://api.snowtrace.io/api?module=proxy&action=eth_sendRawTransaction&hex="+signedtx+"&apikey="+apikey,
+      url: "https://api.celoscan.io/api?module=proxy&action=eth_sendRawTransaction&hex="+signedtx+"&apikey="+apikey,
       json: true
     }
 
