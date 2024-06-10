@@ -1,0 +1,10 @@
+{
+  "web3url":"https://arbitrum-mainnet.infura.io/v3/<your infura key>",
+  "etherscanApiKey":"your-api-key",
+  "gasPrice": 10,
+  "gasLimit": 25000000,
+  "contract_address": "0x4a9196b06f339Ad9F3Ee752C987b401F2E1E2718",
+  "filePath": "./tx.recoveries",
+  "hd_path": "44'/60'/0'/0/0",
+  "signerAddress": "0x your signer address"
+}
