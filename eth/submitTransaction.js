@@ -8,6 +8,8 @@ const Chain = require('@ethereumjs/common').Chain
 const Hardfork = require('@ethereumjs/common').Hardfork
 const Common  = require('@ethereumjs/common').Common
 
+const { getStatus } = require('./flashbotStatus.js')
+
 //Default Ethereum Mainnet = 1
 const chainId = Chain.Mainnet
 
@@ -35,6 +37,7 @@ const { createInterface } = require('readline')
 const rl = createInterface(process.stdin, process.stdout)
 
 let apikey = config.etherscanApiKey
+let txHashes = []
 
 const fs = require('fs')
 
@@ -80,23 +83,48 @@ function getTxData (nonce, data) {
 
 const sign = async function (ledger, tx, nonce) {
   const args = tx.split(' ')
-  let token, instruction
-  switch (args[0]) {
+  let tokenAddress, instruction
+  let token = args[0].toUpperCase()
+  let action = args[1]
+  let functions = []
+  switch (token) {
     case 'USDT':
-      token = 'dac17f958d2ee523a2206206994597c13d831ec7'
+      tokenAddress = 'dac17f958d2ee523a2206206994597c13d831ec7'
+      functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
       break
     case 'EURT':
-      token = 'C581b735A1688071A1746c968e0798D642EDE491'
+      tokenAddress = 'C581b735A1688071A1746c968e0798D642EDE491'
+      functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
       break
     case 'XAUT':
-      token = '68749665ff8d2d112fa859aa293f07a622782f38'
+      tokenAddress = '68749665ff8d2d112fa859aa293f07a622782f38'
+      functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
+      break
+    case 'AUSDT':
+      tokenAddress = '9EEAD9ce15383CaEED975427340b3A369410CFBF'
+      functions=['redeem','transfer','mint','freeze','unfreeze','destroy']
       break
     case 'ADMIN':
-      token = 'C6CDE7C39eB2f0F0095F41570af89eFC2C1Ea828'
+      tokenAddress = 'C6CDE7C39eB2f0F0095F41570af89eFC2C1Ea828'
+      functions=['removeOwner','revokeConfirmation','addOwner','changeRequirement','confirmTransaction','submitTransaction','replaceOwner','executeTransaction']
+      break
+    case 'ORACLE':
+      tokenAddress = '02c65719da4317d84d808740920d6f6285045660'
+      functions=['claimOwnership','setOperator','transferOwnership','setMaximumDeltaPercentage','setThreshold','freezeOracle','unfreezeOracle']
+      break
+    case 'PERMISSIONCONTROL':
+      tokenAddress = '316907d43188851d710e49590311c4658d6ad0b3'
+      functions=['claimOwnership','setOperator','transferOwnership']
       break
   }
 
-  switch (args[1]) {
+  if (!functions.includes(action)) {
+    console.log(`Unsupported function ${action} called on ${token} Contract`)
+    return
+ }
+
+
+  switch (action) {
     case 'issue':
       instruction = 'cc872b66' + padLeftZeros(parseInt(args[2]).toString(16))
       break
@@ -110,7 +138,7 @@ const sign = async function (ledger, tx, nonce) {
       instruction = '40c10f19' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(parseInt(args[3]).toString(16))
       break;
     case 'freeze':
-      if (args[0] == 'USDT') {
+      if (token == 'USDT') {
         //addBlackList
         instruction = '0ecb93c0' + padLeftZeros(args[2].substr(2).toLowerCase())
       } else {
@@ -119,7 +147,7 @@ const sign = async function (ledger, tx, nonce) {
       }
       break
     case 'unfreeze':
-      if (args[0] == 'USDT') {
+      if (token == 'USDT') {
         //removeBlackList
         instruction = 'e4997dc5' + padLeftZeros(args[2].substr(2).toLowerCase())
       } else {
@@ -128,7 +156,7 @@ const sign = async function (ledger, tx, nonce) {
       }
       break
     case 'destroy':
-      if (args[0] == 'USDT') {
+      if (token == 'USDT') {
         //destroyBlackFunds
         instruction = 'f3bdc228' + padLeftZeros(args[2].substr(2).toLowerCase())
       } else {
@@ -142,33 +170,47 @@ const sign = async function (ledger, tx, nonce) {
       instruction = '99a88ec4' +  padLeftZeros(proxyAddr) + padLeftZeros(implimentationAddr)
       break
     case 'addOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = '7065cb48' + padLeftZeros(args[2].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
-      }
+      instruction = '7065cb48' + padLeftZeros(args[2].substr(2).toLowerCase())
       break
     case 'removeOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = '173825d9' + padLeftZeros(args[2].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
-      }
+      instruction = '173825d9' + padLeftZeros(args[2].substr(2).toLowerCase())
       break
     case 'replaceOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = 'e20056e6' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(args[3].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
+      instruction = 'e20056e6' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(args[3].substr(2).toLowerCase())
+      break
+    case 'claimOwnership':
+      instruction = '4e71e0c8'
+      break
+    case 'transferOwnership':
+      //disable direct/renounce for now
+      direct='0'  //True if `newOwner` should be set immediately. False if `newOwner` needs to use `claimOwnership`.
+      renounce='0' //Allows the `newOwner` to be `address(0)` if `direct` and `renounce` is True. Has no effect otherwise.
+      instruction = '078dfbe7' + padLeftZeros(direct) + padLeftZeros(renounce)
+      break
+    case 'freezeOracle':
+      instruction = '62a5af3b'
+      break
+    case 'unfreezeOracle':
+      instruciton = '6a28f000'
+      break
+    case 'setMaximumDeltaPercentage':
+      instruction = 'abee062b' + padLeftZeros(parseInt(args[2]).toString(16))
+      break
+    case 'setOperator':
+      let status='0'
+      if (args[3]) {
+        status='1'
       }
+      instruction = '558a7297' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(status)
+      break
+    case 'setThreshold':
+      instruction = 'e5a98603' + padLeftZeros(parseInt(args[2]).toString(16))
       break
   }
-  // for a transfer needs to be 44 instead of 24
-  const lengthParam = tx.length > 70 ? 44 : 24
-  const data = `0xc6427474000000000000000000000000${token}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000${lengthParam}${instruction}`
+  // for a transfer needs to be 44 instead of 24 longer
+  //const lengthParam = tx.length > 70 ? 44 : 24
+  const lengthParam = args.length > 3 ? 44 : 24
+  const data = `0xc6427474000000000000000000000000${tokenAddress}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000${lengthParam}${instruction}`
   var txData = getTxData(nonce, data)
   var txo = FeeMarketEIP1559Transaction.fromTxData(txData, { common })
   var rawtx = txo.getMessageToSign()
@@ -218,9 +260,9 @@ const sign = async function (ledger, tx, nonce) {
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
   console.log("Broadcasting...")
-  await broadcastEtherscan(signedHex)
-  await broadcast(signedHex)
-  //await broadcastFlashbot(signedHex)
+  //await broadcastEtherscan(signedHex)
+  //await broadcast(signedHex)
+  await broadcastFlashbot(signedHex)
 }
 
 
@@ -231,10 +273,10 @@ async function updateGas () {
       })
     if (ethGasStationData.status == 1) {
       gasPrice = parseInt(ethGasStationData.result.FastGasPrice) - parseInt(ethGasStationData.result.ProposeGasPrice)
-      maxFeePerGas = ((parseInt(ethGasStationData.result.suggestBaseFee) * 2) + gasPrice) * 10e8
       if (gasPrice < 2) {
         gasPrice = 2
       }
+      maxFeePerGas = ((parseInt(ethGasStationData.result.suggestBaseFee) * 2) + gasPrice) * 10e8
     } else {
       if (ethGasStationData.result == "Invalid API Key"){
         console.log("Invalid Etherscan API Key, fix or remove from config to continue")
@@ -266,6 +308,7 @@ async function broadcastFlashbot (signedtx) {
       console.log("Error: ",txResult.error.message)
     } else {
       console.log(txResult.result);
+      txHashes.push(txResult.result);
     }
   }).catch(function (err) {
     console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
@@ -331,12 +374,13 @@ async function confirmBroadcast (signedtx) {
   })
 }
 
-console.log('Config:')
-console.log(config)
-console.log('txs:')
-console.log(txs)
+async function main() {
+ console.log('Config:')
+ console.log(config)
+ console.log('txs:')
+ console.log(txs)
 
-rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
+ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
   if (answer !== 'y') {
     console.log('Exiting')
     return process.exit(1)
@@ -369,14 +413,19 @@ rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
       console.log(err)
     }
     //give time for final broadcast to finish
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    let txCountF = parseInt(await adminContract.methods.transactionCount().call())
     console.log('Closing Ledger...')
+    await new Promise(resolve => setTimeout(resolve, 2000));
     console.log('Finished')
+    //console.log(txHashes);
+    await getStatus(txHashes)
+    let txCountF = parseInt(await adminContract.methods.transactionCount().call())
     console.log('Msig txs: ',txCountS,' - ',txCountF-1,' ready')
     process.exit(1)
   } catch (err) {
     console.log(err)
     process.exit(1)
   }
-})
+ })
+}
+
+main()
