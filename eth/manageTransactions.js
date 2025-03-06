@@ -21,16 +21,23 @@ const { processList } = require('./helperQueryManagement');
 
 const config = require('./ethConfig.json');
 const fs = require('fs');
-const myArgs = process.argv.slice(2);
 
-let filePath = myArgs.length > 0 ? myArgs[0] : config.filePath;
-const txs = fs.readFileSync(filePath, 'utf8').split('\n').filter(Boolean);
 const contractAddress = config.contract_address;
 const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
+let txs;
 
-const sign = async (ledger, tx, nonce) => {
-  const data = '0xc01a8c84' + padLeftZeros(parseInt(tx).toString(16));
+const sign = async (ledger, tx, nonce, action) => {
+  let inst;
+  switch (action) {
+    case 'confirm':
+      inst='0xc01a8c84'
+    break
+    case 'revoke':
+      inst='0x20ea8d86'
+    break
+  }
+  const data = inst + padLeftZeros(parseInt(tx).toString(16));
   const txData = getTxData(nonce, data, gasLimit, gasPrice, maxFeePerGas, contractAddress);
   const txo = FeeMarketEIP1559Transaction.fromTxData(txData, { common });
   const rawtx = txo.getMessageToSign();
@@ -61,11 +68,47 @@ const sign = async (ledger, tx, nonce) => {
 };
 
 async function main() {
+  let filePath;
+  const myArgs = process.argv.slice(2);
+  let action = myArgs[0].toLowerCase();
+  if ( !['confirm','revoke'].includes(action) || myArgs.length < 2) {
+    console.log("\x1b[31m Invalid Syntax. Please call with following format: \x1b[0m");
+    console.log("\x1b[32m    node manageTransactions.js <action> <filepath || tx || list_of_txs>\x1b[0m");
+    console.log(" Valid options for action are \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
+    console.log(" Example:")
+    console.log("\x1b[32m    node manageTransactions.js confirm txs.to_confirm \x1b[0m");
+    console.log(" or")
+    console.log("\x1b[32m    node manageTransactions.js revoke 2000,2001 \x1b[0m");
+    process.exit(0);
+  }
+
+  filePath = myArgs[1];
+  if (fs.existsSync(filePath)) {
+    txs = fs.readFileSync(filePath, 'utf8').split('\n').filter(Boolean);
+  } else {
+    txs = myArgs[1].split(',').filter(Boolean);
+  }
+
   console.log('Config:')
   console.log(config)
   console.log('txs:')
   //console.log(txs)
-  await processList([txs.join(",")],true);
+  let sortedTxs={};
+  let data;
+  if (txs.length==1) {
+    data=[txs,txs]
+  } else {
+    data=[txs.join(",")]
+  }
+  await processList(data,true).then(res => {
+    res.forEach(subArray => {
+      if (subArray.length > 0) {
+        const key = subArray[0]; // First element as key
+        const value = subArray.slice(1); // Remaining elements as value
+        sortedTxs[key] = value; // If only one value, store it as a single value
+      }
+    });
+  });
 
   rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
     if (answer !== 'y') {
@@ -76,7 +119,6 @@ async function main() {
     console.log('Initializing....')
 
     try {
-
       const ledger = await createLedger();
       const signer = await ledger.getAddress(config.hd_path);
       let nonce = await web3.eth.getTransactionCount(signer.address);
@@ -86,9 +128,41 @@ async function main() {
       try {
         for (const tx of txs) {
           if (!tx.startsWith('#')) {
-            ({ gasPrice, maxFeePerGas } = await updateGas());
-            await sign(ledger, tx, nonce);
-            nonce++;
+            let txDetails = sortedTxs[tx];
+            let executed=false;
+            let signers=[];
+            if (txDetails) {
+              executed = txDetails[4];
+              signers = txDetails[5];
+            }
+
+            if (!executed) {
+              switch (action) {
+                case 'confirm':
+                  if (signers.includes(signer.address)) {
+                    console.log("\x1b[36m You have already signed tx: \x1b[33m",tx,"\x1b[0m");
+                    continue;
+                  }
+                  break
+                case 'revoke':
+                  if (!signers.includes(signer.address)) {
+                    console.log("\x1b[36m You have no confirmation to revoke on tx: \x1b[33m",tx,"\x1b[0m");
+                    continue;
+                  }
+                  break
+                default:
+                  console.log("Unknown action ",action,". Please select either \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
+                  process.exit(0);
+              }
+
+              ({ gasPrice, maxFeePerGas } = await updateGas());
+              await sign(ledger, tx, nonce, action);
+              nonce++;
+
+            } else {
+              console.log("\x1b[36m Transaction: \x1b[33m",tx,"\x1b[36m already executed\x1b[0m");
+            }
+
           }
         }
       } catch (err) {

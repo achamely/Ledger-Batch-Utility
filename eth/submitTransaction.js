@@ -233,7 +233,7 @@ async function main() {
       await getStatus(txHashes)
       //give time for getStatus to finish after last tx confirms
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await processList(txCountS,false)
+      await processList([txCountS],false,true,false);
       let txCountF = parseInt(await adminMSIG.methods.transactionCount().call())
       console.log('Msig txs: ',txCountS,' - ',txCountF-1,' ready')
       process.exit(1)

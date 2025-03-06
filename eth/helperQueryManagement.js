@@ -51,6 +51,10 @@ function checkPrint(ret) {
   if (callsRemaining <= 0) {
     sorted=respData.sort((a,b) => a[0] - b[0] )
 
+    if (printSummary) {
+      console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed'].join(','));
+    }
+
     sorted.forEach(ele => {
       method=ele[2]
       if (grouped[method] === undefined) {
@@ -69,7 +73,8 @@ function checkPrint(ret) {
 
     if (printGroup) {
       Object.entries(grouped).forEach(([key, value]) => {
-        console.log(`Method: \x1b[35m${key}\x1b[0m, \x1b[33m${value.length}\x1b[0m transactions`);
+        console.log(`\nMethod: \x1b[35m${key}\x1b[0m, \x1b[33m${value.length}\x1b[0m transactions`);
+        console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed'].join(','));
         value.forEach(ele => {
           if (ele[5]) {
             console.log('\x1b[32m%s\x1b[0m',ele.join(','));
@@ -97,7 +102,6 @@ async function getConfirmationsHelper(tx,ret) {
 
 async function getStatus() {
   console.log("Processing", txList.length, "items");
-  console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed'].join(','));
 
   return new Promise((resolve) => {
     if (txList.length === 0) {
@@ -121,7 +125,6 @@ async function getStatus() {
 
 async function getStatus_interval() {
   console.log("processing ",txList.length," items");
-  console.log(['TX','Destination','Method','Address','Value','Executed'].join(','));
 
   return new Promise((resolve, reject) => {
     if (txList.length === 0) {
@@ -148,12 +151,17 @@ async function processList(list, df, ps, pg) {
   printSummary = (ps === undefined) ? false : ps;
   printGroup = (pg === undefined) ? true : pg;
 
+  //make sure list is reset before processing again;
+  respData.length=0
+  //Object.keys(grouped).forEach(key => delete grouped[key]);
+
   await adminMSIG.methods.transactionCount().call().then( txCount =>{
     end = parseInt(txCount) - 1
     switch (list.length) {
       case 1:
-        if (list[0].includes(",")) {
-          itemList = list[0].split(",")
+        sData=list[0].toString()
+        if (sData.includes(",")) {
+          itemList = sData.split(",")
           itemList.forEach((item) => {
             item=parseInt(item)
             if (item <= end) {
@@ -162,7 +170,7 @@ async function processList(list, df, ps, pg) {
           });
         }
         else {
-          start = parseInt(list[0]);
+          start = parseInt(sData);
           txList = range(start,end,1)
         }
         break;
@@ -176,11 +184,15 @@ async function processList(list, df, ps, pg) {
         break;
       default:
         console.log("Usage: node queryManagementTxStatusInfo.js <start> <end optional>");
-        console.log("Current tx count, ",txCount);
+        console.log("Current tx count, ",parseInt(txCount));
+        console.log(list);
+        return
     }
   })
   callsRemaining=txList.length
   await getStatus();
+  Object.keys(grouped).forEach(key => delete grouped[key]);
+  return sorted;
 }
 
 module.exports = {
