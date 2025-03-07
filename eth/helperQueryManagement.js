@@ -3,8 +3,6 @@ const {
   decodeData,
 } = require('./common');
 
-const config = require('./ethConfig.json')
-
 let detailFlag, printSummary, printGroup;
 
 const interval = 300
@@ -17,32 +15,38 @@ var respData = [];
 var callsRemaining = 0;
 
 async function getStatusHelper(tx) {
-  adminMSIG.methods.transactions(tx).call().then( result=> {
-    //console.log(result);
+  try {
+    const result = await adminMSIG.methods.transactions(tx).call();
+    let formatted_amount, method, addr;
+
     if (result.data == null) {
-      formatted_amount = result.value/1e18
-      method = 'eth-transfer'
-      addr = result.destination
+      formatted_amount = result.value / 1e18;
+      method = 'eth-transfer';
+      addr = result.destination;
     } else {
-      data = decodeData(result.data)
-      //console.log("TX:",tx,"-",result.destination,'-',data.method,data.addr,data.value,'- Executed:',result.executed);
-      //formatted_amount = data.value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-      formatted_amount = data.value
-      method = data.method
-      addr = data.addr
+      const data = decodeData(result.data);
+      formatted_amount = data.value;
+      method = data.method;
+      addr = data.addr;
     }
-    ret = [tx,result.destination,method,addr,formatted_amount,result.executed]
+
+    const ret = [
+      tx,
+      result.destination,
+      method,
+      addr,
+      formatted_amount,
+      result.executed
+    ];
+
     if (result.executed || !detailFlag) {
-      //console.log('\x1b[32m%s\x1b[0m',ret.join(','));
       checkPrint(ret);
     } else {
-      //console.log('\x1b[33m%s\x1b[0m',ret.join(','));
-      getConfirmationsHelper(tx,ret)
+      await getConfirmationsHelper(tx, ret);
     }
-  }).catch( error=> {
-    //console.log([tx,'error',error].join(","))
-    checkPrint([tx,'error',error])
-  })
+  } catch (error) {
+    checkPrint([tx, 'error', error.message || error]);
+  }
 }
 
 function checkPrint(ret) {
@@ -88,7 +92,7 @@ function checkPrint(ret) {
 }
 
 async function getConfirmationsHelper(tx,ret) {
-  adminMSIG.methods.getConfirmations(tx).call().then( result=> {
+  await adminMSIG.methods.getConfirmations(tx).call().then( result=> {
     rl = result.length
     ret = ret.concat(rl+" - "+result)
     //console.log(ret.join(","));
@@ -123,29 +127,6 @@ async function getStatus() {
   });
 }
 
-async function getStatus_interval() {
-  console.log("processing ",txList.length," items");
-
-  return new Promise((resolve, reject) => {
-    if (txList.length === 0) {
-      //console.log("No transactions to process.");
-      return resolve();
-    }
-
-
-    let idx = setInterval(async function () {
-      if (txList.length === 0) {
-        clearInterval(idx);  // Ensure interval is cleared
-        //console.log("All transactions checked.");
-        resolve();  // Resolve the Promise
-      } else {
-        let tx = txList.shift();
-        await getStatusHelper(tx);
-      }
-    }, interval);
-  });
-}
-
 async function processList(list, df, ps, pg) {
   detailFlag = (df === undefined) ? false : df;
   printSummary = (ps === undefined) ? false : ps;
@@ -153,7 +134,6 @@ async function processList(list, df, ps, pg) {
 
   //make sure list is reset before processing again;
   respData.length=0
-  //Object.keys(grouped).forEach(key => delete grouped[key]);
 
   await adminMSIG.methods.transactionCount().call().then( txCount =>{
     end = parseInt(txCount) - 1
@@ -180,17 +160,18 @@ async function processList(list, df, ps, pg) {
         if (finish < end) {
           end = finish;
         }
-        txList = range(start,end,1)
+        txList = range(start,end,1);
         break;
       default:
         console.log("Usage: node queryManagementTxStatusInfo.js <start> <end optional>");
         console.log("Current tx count, ",parseInt(txCount));
         console.log(list);
-        return
+        return;
     }
   })
   callsRemaining=txList.length
   await getStatus();
+  let sorted=respData.sort((a,b) => a[0] - b[0] )
   Object.keys(grouped).forEach(key => delete grouped[key]);
   return sorted;
 }

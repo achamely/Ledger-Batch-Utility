@@ -281,4 +281,5 @@ module.exports = {
   rl,
   adminMSIG,
   txHashes,
+  fs,
 };

@@ -4,13 +4,22 @@ const interval=2000;
 let results={}
 
 async function updateResults(txhash) {
-  let txstatus = await request.get({
+  try {
+    let response = await request.get({
         url: 'https://protect.flashbots.net/tx/'+txhash,
-        json: true
+        json: true,
+        resolveWithFullResponse: true
       })
-  let status = txstatus.status
-  let maxBlock = txstatus.maxBlockNumber
-  results[txhash]={'status':status, 'maxBlockNumber':maxBlock}
+    if (response.statusCode == 200) {
+      let txstatus = response.body;
+      console.log(txstatus);
+      let status = txstatus.status;
+      let maxBlock = txstatus.maxBlockNumber;
+      results[txhash]={'status':status, 'maxBlockNumber':maxBlock};
+    }
+  } catch (err) {
+    console.log(`Error getting ${txhash} status, retrying... ${err}`);
+  }
 }
 
 async function getStatus(txlist) {

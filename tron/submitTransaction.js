@@ -1,73 +1,30 @@
 'use strict'
 
+const {
+  createLedger,
+  padLeftZeros,
+  getTxData,
+  broadcast,
+  tronWeb,
+  initContracts,
+  getMsigContract,
+  rl,
+  fs,
+} = require('./common');
+
+const { processList } = require('./helperQueryManagement');
+
 const config = require('./tronConfig.json')
 const myArgs = process.argv.slice(2)
-
-const TronWeb = require('tronweb')
-const tronWebOptions = {
-  fullHost: config.fullHostURL
-}
-if (!(config.trongridApiKey === null || config.trongridApiKey.trim() === '')) {
-  tronWebOptions.headers = { "TRON-PRO-API-KEY": config.trongridApiKey }
-}
-const tronWeb = new TronWeb(tronWebOptions);
-
-tronWeb.setAddress(config.contract_address);
-
-const Transport = require('@ledgerhq/hw-transport-node-hid').default
-const AppTrx = require('@ledgerhq/hw-app-trx').default
-const request = require('request-promise')
-
-const { createInterface } = require('readline')
-const rl = createInterface(process.stdin, process.stdout)
-
-const fs = require('fs')
-
-let filePath
-if (myArgs.length > 0) {
-  filePath = myArgs[0]
-} else {
-  filePath = config.filePath
-}
-
-const txs = fs.readFileSync(filePath).toString().split('\n').filter(Boolean)
-
-const contractAddress = config.contract_address
-
-//==============
-const createLedger = async () => {
-  console.log('Ledger initialized')
-  const transport = await Transport.create()
-  return new AppTrx(transport)
-}
-
-function padLeftZeros (stringItem) {
-  return new Array(64 - stringItem.length + 1).join('0') + stringItem
-}
-
-const getTxHex = async function (dest,data) {
-  var parameter = [{type:'address',value:dest},{type:'uint256',value:0},{type:'bytes',value:data}];
-  var options = {
-        feeLimit:config.feeLimit,
-        callValue:0
-    };
-  let sc,signer
-  sc = tronWeb.address.toHex(contractAddress).toLowerCase();
-  signer = tronWeb.address.toHex(config.signerAddress).toLowerCase();
-  const txo = await tronWeb.transactionBuilder.triggerSmartContract(sc, "submitTransaction(address,uint256,bytes)", options,  parameter, signer);
-  return txo
-}
 
 const sign = async function (ledger, tx) {
   const args = tx.split(' ')
   let token, instruction, encodedAddr
 
-  if (['/','#'].includes(args[0][0])) {
-    //comment skip line
-    return
-  }
+  let tSym = args[0].toUpperCase();
+  let action = args[1].toLowerCase();
 
-  switch (args[0]) {
+  switch (tSym) {
     case 'USDT':
       token = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
       break
@@ -83,9 +40,12 @@ const sign = async function (ledger, tx) {
     case 'ProxyAdmin':
       token = 'TCCf77hjPZVXBaeGFv39h5oBMKd2z1D69b'
       break
+    default:
+      console.log('Invalid Token option: ',tSym,' for tx: \n',tx);
+      return
   }
 
-  switch (args[1]) {
+  switch (action) {
     case 'issue':
       instruction = 'cc872b66' + padLeftZeros(parseInt(args[2]).toString(16))
       break
@@ -135,9 +95,12 @@ const sign = async function (ledger, tx) {
       let implimentationAddr = tronWeb.address.toHex(args[3]).toLowerCase()
       instruction = '99a88ec4' +  padLeftZeros(proxyAddr) + padLeftZeros(implimentationAddr)
       break
+    default:
+      console.log('Invalid action: ',action,' for tx: \n',tx);
+      return
   }
   const data = `0x${instruction}`
-  var txo = await getTxHex(token, data)
+  var txo = await getTxData('submit', data, token)
   var rawtx = txo.transaction.raw_data_hex
   var txHash = txo.transaction.txID
 
@@ -168,66 +131,68 @@ const sign = async function (ledger, tx) {
     return
   }
 
-  //console.log(txo.transaction);
   await broadcast(txo.transaction)
 }
 
-async function broadcast (signedtx) {
-    //broadcast final tx
-    console.log("Broadcasting...")
-    try {
-      await tronWeb.trx.sendRawTransaction(signedtx, async function(err, result) {
-        if (!err) {
-          console.log(result.transaction.txID);
-        } else {
-          console.log(err);
-        }
-      });
-    } catch (err) {
-      console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
-    }
-}
-
-console.log('Config:')
-console.log(config)
-console.log('txs:')
-console.log(txs)
-
-rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
-  if (answer !== 'y') {
-    console.log('Exiting')
-    return process.exit(1)
+async function main() {
+  let txs;
+  let filePath = myArgs[0];
+  if (fs.existsSync(filePath)) {
+    txs = fs.readFileSync(filePath, 'utf8').toString().split('\n').filter(Boolean);
+  } else {
+    txs = [myArgs.join(' ')];
   }
 
-  console.log('Initializing....')
-  let msigContract = await tronWeb.contract().at(contractAddress);
-  let res = await msigContract.transactionCount().call()
-  let cMax = parseInt(res)
+  console.log('Config:')
+  console.log(config)
+  console.log('txs:')
+  console.log(txs)
 
-  try {
-    const ledger = await createLedger()
+  rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
+    if (answer !== 'y') {
+      console.log('Exiting')
+      return process.exit(1)
+    }
+
+    console.log('Initializing....')
+    await initContracts();
+    let msigContract;
+    try {
+      msigContract = getMsigContract(); // Fetch initialized contract
+    } catch (err) {
+      console.error("Error: ", err.message);
+      return;
+    }
 
     try {
-      for (const tx of txs) {
-        await sign(ledger, tx)
+      let txCountS = parseInt(await msigContract.transactionCount().call());
+      const ledger = await createLedger()
+      let signer = await ledger.getAddress(config.hd_path)
+      console.log("Signing Address:", signer.address)
+
+      try {
+        for (const tx of txs) {
+          if (!tx.startsWith('#')) {
+            await sign(ledger, tx)
+          }
+        }
+      } catch (err) {
+        console.log(err)
       }
+
+      //give time for final broadcast to finish
+      console.log('Closing Ledger...')
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      console.log('Finished')
+      await processList([txCountS],false,true,false);
+      let txCountF = parseInt(await msigContract.transactionCount().call()) - 1;
+      console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
+      process.exit()
     } catch (err) {
       console.log(err)
+      process.exit(1)
     }
+  })
+}
 
-    let nRes = await msigContract.transactionCount().call()
-    let nMax = parseInt(nRes) - 1
-
-    //give time for final broadcast to finish
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-
-    console.log('MSIG Txs:',cMax,nMax,'created')
-    console.log('Finished')
-    console.log('Closing Ledger...')
-    process.exit(1)
-  } catch (err) {
-    console.log(err)
-    process.exit(1)
-  }
-})
+main();

@@ -14,18 +14,16 @@ const {
   rl,
   adminMSIG,
   txHashes,
+  fs,
 } = require('./common');
 
 const { getStatus } = require('./flashbotStatus.js')
 const { processList } = require('./helperQueryManagement');
 
 const config = require('./ethConfig.json');
-const fs = require('fs');
 const request = require('request-promise');
 const myArgs = process.argv.slice(2);
 
-let filePath = myArgs.length > 0 ? myArgs[0] : config.filePath;
-const txs = fs.readFileSync(filePath, 'utf8').split('\n').filter(Boolean);
 const contractAddress = config.contract_address;
 const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
@@ -34,7 +32,7 @@ const sign = async (ledger, tx, nonce) => {
   const args = tx.split(' ');
   let tokenAddress, instruction;
   let token = args[0].toUpperCase();
-  let action = args[1];
+  let action = args[1].toLowerCase();
 
   let functions = []
   switch (token) {
@@ -192,6 +190,14 @@ const sign = async (ledger, tx, nonce) => {
 };
 
 async function main() {
+  let txs;
+  let filePath = myArgs[0];
+  if (fs.existsSync(filePath)) {
+    txs = fs.readFileSync(filePath, 'utf8').toString().split('\n').filter(Boolean);
+  } else {
+    txs = [myArgs.join(' ')];
+  }
+
   console.log('Config:')
   console.log(config)
   console.log('txs:')
@@ -227,16 +233,15 @@ async function main() {
 
       //give time for final broadcast to finish
       console.log('Closing Ledger...')
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       console.log('Finished')
-      //console.log(txHashes);
-      await getStatus(txHashes)
+      await getStatus(txHashes);
       //give time for getStatus to finish after last tx confirms
       await new Promise(resolve => setTimeout(resolve, 2000));
       await processList([txCountS],false,true,false);
-      let txCountF = parseInt(await adminMSIG.methods.transactionCount().call())
-      console.log('Msig txs: ',txCountS,' - ',txCountF-1,' ready')
-      process.exit(1)
+      let txCountF = parseInt(await adminMSIG.methods.transactionCount().call()) - 1;
+      console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
+      process.exit()
     } catch (err) {
       console.log(err)
       process.exit(1)

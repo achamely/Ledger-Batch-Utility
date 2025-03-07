@@ -1,74 +1,58 @@
-'use strict';
+'use strict'
 
 const {
   createLedger,
   padLeftZeros,
   getTxData,
-  updateGas,
-  broadcastFlashbot,
-  web3,
-  common,
-  FeeMarketEIP1559Transaction,
-  bytesToHex,
-  ledgerService,
+  broadcast,
+  tronWeb,
+  initContracts,
+  getMsigContract,
   rl,
-  adminMSIG,
-  txHashes,
   fs,
 } = require('./common');
 
-const { getStatus } = require('./flashbotStatus.js');
 const { processList } = require('./helperQueryManagement');
-
-const config = require('./ethConfig.json');
-
-const contractAddress = config.contract_address;
-const gasLimit = config.gasLimit;
-let gasPrice, maxFeePerGas;
+const config = require('./tronConfig.json');
 let txs;
 
-const sign = async (ledger, tx, nonce, action) => {
-  let inst;
-  switch (action) {
-    case 'confirm':
-      inst='0xc01a8c84'
-    break
-    case 'revoke':
-      inst='0x20ea8d86'
-    break
-  }
-  const data = inst + padLeftZeros(parseInt(tx).toString(16));
-  const txData = getTxData(nonce, data, gasLimit, gasPrice, maxFeePerGas, contractAddress);
-  const txo = FeeMarketEIP1559Transaction.fromTxData(txData, { common });
-  const rawtx = txo.getMessageToSign();
+const sign = async function (ledger, tx, action) {
+  // construct the data packet for confirming a tx
+  var txo = await getTxData(action,tx)
+  var rawtx = txo.transaction.raw_data_hex
+  var txHash = txo.transaction.txID
 
-  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',gasPrice,parseInt(nonce),tx,data,)
-  let result;
+  console.log('\nRequesting Ledger Sign: TX: \x1b[32m%s\x1b[0m, \nTxHash: \x1b[32m%s\x1b[0m',tx,txHash)
   try {
-    const resolution = await ledgerService.resolveTransaction(bytesToHex(rawtx).substring(2), {}, {});
-    result = await ledger.signTransaction(config.hd_path, rawtx, resolution);
+    var result = await ledger.signTransactionHash(config.hd_path, txHash)
   } catch (err) {
     console.log("Sign Operation Error: \x1b[32m%s\x1b[0m",err.message)
-    return;
+    return
   }
 
-  txData.v = '0x' + result.v;
-  txData.r = '0x' + result.r;
-  txData.s = '0x' + result.s;
-  const signedTx = FeeMarketEIP1559Transaction.fromTxData(txData, { common });
+  // Store signature in transaction
+  txo.transaction.signature=[result];
 
-  console.log('---------------Begin Verification Checks---------------')
-  console.log('Sending Address: \x1b[32m%s\x1b[0m',signedTx.getSenderAddress().toString('hex'))
-  //console.log('Valid Signature:',signedTx.verifySignature(),', Valid Gas Estimates:',signedTx.isValid())
-  console.log('Valid Signature:',signedTx.verifySignature())
-  var signedHex = bytesToHex(signedTx.serialize())
-  console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
+  var sender = tronWeb.address.fromHex(txo.transaction.raw_data.contract[0].parameter.value.owner_address)
+  var dstContract = tronWeb.address.fromHex(txo.transaction.raw_data.contract[0].parameter.value.contract_address)
+  console.log('Sending Address: \x1b[32m%s\x1b[0m',sender)
+  console.log('Destination Contract: \x1b[32m%s\x1b[0m',dstContract)
+  console.log('Signature: \x1b[32m%s\x1b[0m',txo.transaction.signature)
+  if (sender != config.signerAddress) {
+    console.log('Sending Address Verification Failed. Expecting: \x1b[32m%s\x1b[0m',config.signerAddress)
+    return
+  }
+  if (dstContract != config.contract_address) {
+    console.log('Destination Contract Verification Failed. Expecting: \x1b[32m%s\x1b[0m',token)
+    return
+  }
 
-  await broadcastFlashbot(signedHex);
-};
+  await broadcast(txo.transaction);
+}
+
 
 async function main() {
-  const myArgs = process.argv.slice(2);
+  const myArgs = process.argv.slice(2)
   let action = myArgs[0].toLowerCase();
   if ( !['confirm','revoke'].includes(action) || myArgs.length < 2) {
     console.log("\x1b[31m Invalid Syntax. Please call with following format: \x1b[0m");
@@ -87,6 +71,7 @@ async function main() {
   } else {
     txs = myArgs[1].split(',').filter(Boolean);
   }
+
 
   console.log('Config:')
   console.log(config)
@@ -118,11 +103,9 @@ async function main() {
     console.log('Initializing....')
 
     try {
-      const ledger = await createLedger();
+      const ledger = await createLedger()
       const signer = await ledger.getAddress(config.hd_path);
-      let nonce = await web3.eth.getTransactionCount(signer.address);
       console.log("Signing Address:", signer.address)
-      console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
 
       try {
         for (const tx of txs) {
@@ -134,6 +117,7 @@ async function main() {
               executed = txDetails[4];
               signers = txDetails[5];
             }
+
             if (!executed) {
               switch (action) {
                 case 'confirm':
@@ -152,30 +136,21 @@ async function main() {
                   console.log("Unknown action ",action,". Please select either \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
                   process.exit(0);
               }
-
-              ({ gasPrice, maxFeePerGas } = await updateGas());
-              await sign(ledger, tx, nonce, action);
-              nonce++;
-
+              await sign(ledger, tx, action);
             } else {
               console.log("\x1b[36m Transaction: \x1b[33m",tx,"\x1b[36m already executed\x1b[0m");
             }
-
           }
         }
       } catch (err) {
         console.log(err)
       }
 
-
       //give time for final broadcast to finish
       console.log('Closing Ledger...')
       await new Promise(resolve => setTimeout(resolve, 3000));
       console.log('Finished')
-
-      await getStatus(txHashes);
       console.log("Checking TX Status");
-      await new Promise(resolve => setTimeout(resolve, 2000));
       await processList(data,true);
       process.exit(0)
     } catch (err) {
@@ -183,6 +158,7 @@ async function main() {
       process.exit(1)
     }
   })
+
 }
 
-main();
+main()
