@@ -6,7 +6,6 @@ Follow install instructions from main readme:
 Update ethConfig.json and fill in/update:
  - `web3url`: your specific infura url (can signup for free on infura.io) used for broadcasting
  - `contract_address`: used only for confirm tx right now
- - `filePath`: default file to read the instructions from, can also be passed as first argument when calling scripts
 
 `startingNonce` and `gasprice` are pulled from blockchain
 
@@ -14,9 +13,15 @@ Update ethConfig.json and fill in/update:
 
 Usage: 
 ```
-node confirmTransactions.js <file>
-node revokeTransactions.js <file>
+node manageTransactions.js confirm <file>
+node manageTransactions.js confirm <msig_id>
+node manageTransactions.js confirm <msig_id>,<msig_id>,<msig_id>
+node manageTransactions.js revoke <file>
+node manageTransactions.js revoke <msig_id>
+node manageTransactions.js revoke <msig_id>,<msig_id>,<msig_id>
 node submitTransactions.js <file>
+node submitTransactions.js usdt freeze <address>
+node queryManagementTxStatusInfo.js <msig_id>
 ```
 
 Example subfolder contains sample files

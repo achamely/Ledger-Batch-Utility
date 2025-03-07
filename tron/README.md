@@ -8,16 +8,21 @@ Update tronConfig.json as needed:
  - `trongridApiKey`: (optional) provide an api key to access trongrid resources with relaxed api rate limits
  - `feeLimit`: max fee tx should be allowed, default `1000000000`
  - `contract_address`: msig contract instructions should be sent to, default: `"TBPxhVAsuzoFnKyXtc1o2UySEydPHgATto"`
- - `filePath`: default file to read the instructions from, can also be passed as first argument when calling scripts
  - `hd_path`: ledger address derivation path, default: `"44'/195'/0'/0/0"`
  - `signerAddress`: signing address of your ledger, used during tx validation
 
 
 Usage: 
 ```
-node confirmTransactions.js <file>
-node revokeTransactions.js <file>
+node manageTransactions.js confirm <file>
+node manageTransactions.js confirm <msig_id>
+node manageTransactions.js confirm <msig_id>,<msig_id>,<msig_id>
+node manageTransactions.js revoke <file>
+node manageTransactions.js revoke <msig_id>
+node manageTransactions.js revoke <msig_id>,<msig_id>,<msig_id>
 node submitTransactions.js <file>
+node submitTransactions.js usdt freeze <address>
+node queryManagementTxStatusInfo.js <msig_id>
 ```
 
 Example subfolder contains sample files
