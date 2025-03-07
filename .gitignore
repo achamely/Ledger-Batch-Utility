@@ -12,6 +12,7 @@ yarn.lock
 yarn-error.log
 dbdata
 ethConfig.json
+tronConfig.json
 *OLD*
 *old*
 tx.*
