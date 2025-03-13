@@ -233,7 +233,8 @@ async function main() {
 
       //give time for final broadcast to finish
       console.log('Closing Ledger...')
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      console.log('Checking Txs status')
+      await new Promise(resolve => setTimeout(resolve, 10000));
       console.log('Finished')
       await getStatus(txHashes);
       //give time for getStatus to finish after last tx confirms
