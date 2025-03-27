@@ -62,7 +62,7 @@ const sign = async function (ledger, tx) {
       break;
     case 'freeze':
       encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
-      if (args[0] == 'USDT') {
+      if (tSym == 'USDT') {
         //addBlackList
         instruction = '0ecb93c0' + padLeftZeros(encodedAddr)
       } else {
@@ -72,7 +72,7 @@ const sign = async function (ledger, tx) {
       break
     case 'unfreeze':
       encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
-      if (args[0] == 'USDT') {
+      if (tSym == 'USDT') {
         //removeBlackList
         instruction = 'e4997dc5' + padLeftZeros(encodedAddr)
       } else {
@@ -82,7 +82,7 @@ const sign = async function (ledger, tx) {
       break
     case 'destroy':
       encodedAddr = tronWeb.address.toHex(args[2]).toLowerCase()
-      if (args[0] == 'USDT') {
+      if (tSym == 'USDT') {
         //destroyBlackFunds
         instruction = 'f3bdc228' + padLeftZeros(encodedAddr)
       } else {
