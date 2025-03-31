@@ -12,7 +12,6 @@ async function updateResults(txhash) {
       })
     if (response.statusCode == 200) {
       let txstatus = response.body;
-      console.log(txstatus);
       let status = txstatus.status;
       let maxBlock = txstatus.maxBlockNumber;
       results[txhash]={'status':status, 'maxBlockNumber':maxBlock};

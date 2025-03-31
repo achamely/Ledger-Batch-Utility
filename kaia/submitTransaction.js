@@ -1,105 +1,78 @@
 'use strict'
 
-const FeeMarketEIP1559Transaction = require('@ethereumjs/tx').FeeMarketEIP1559Transaction
-const LegacyTransaction = require('@ethereumjs/tx').LegacyTransaction
-const bytesToHex = require('@ethereumjs/util').bytesToHex
-const AppEth = require('@ledgerhq/hw-app-eth').default
+const {
+  createLedger,
+  padLeftZeros,
+  getTxData,
+  updateGas,
+  broadcast,
+  web3,
+  common,
+  FeeMarketEIP1559Transaction,
+  bytesToHex,
+  ledgerService,
+  rl,
+  adminMSIG,
+  txHashes,
+  fs,
+} = require('./common');
 
-const Chain = require('@ethereumjs/common').Chain
-const Hardfork = require('@ethereumjs/common').Hardfork
-const Common  = require('@ethereumjs/common').Common
-const RLP = require('@ethereumjs/rlp')
+const { processList } = require('./helperQueryManagement');
 
-//Default Ethereum Mainnet = 1
-const chainId = 8217
-//const common = new Common({ chain: chainId, hardfork: Hardfork.London, eips: [1559]})
-const common = Common.custom({ chainId: chainId})
+const config = require('./ethConfig.json');
+const request = require('request-promise');
+const myArgs = process.argv.slice(2);
 
-const config = require('./ethConfig.json')
-const myArgs = process.argv.slice(2)
+const contractAddress = config.contract_address;
+const gasLimit = config.gasLimit;
+let gasPrice, maxFeePerGas;
 
-const Web3 = require('web3').Web3
-const web3 = new Web3(new Web3.providers.HttpProvider(config.web3url))
+const sign = async (ledger, tx, nonce) => {
+  const args = tx.split(' ');
+  let tokenAddress, instruction;
+  let token = args[0].toUpperCase();
+  let action = args[1].toLowerCase();
 
-const Transport = require('@ledgerhq/hw-transport-node-hid').default
-const request = require('request-promise')
-
-const ledgerService = require('@ledgerhq/hw-app-eth').ledgerService
-
-const createLedger = async () => {
-  console.log('Ledger initialized')
-  const transport = await Transport.create()
-  return new AppEth(transport)
-}
-
-
-const { createInterface } = require('readline')
-const rl = createInterface(process.stdin, process.stdout)
-
-const fs = require('fs')
-
-let filePath
-if (myArgs.length > 0) {
-  filePath = myArgs[0]
-} else {
-  filePath = config.filePath
-}
-
-const txs = fs.readFileSync(filePath).toString().split('\n').filter(Boolean)
-
-const gasLimit = config.gasLimit
-let gasPrice
-let maxFeePerGas
-let ethGasStationData
-
-const contractAddress = config.contract_address
-
-//= =============
-function padLeftZeros (stringItem) {
-  return new Array(64 - stringItem.length + 1).join('0') + stringItem
-}
-
-function getTxData (nonce, data) {
-
-  var txData = {
-    data: data,
-    nonce: web3.utils.toHex(nonce),
-    gasPrice: web3.utils.toHex(gasPrice),
-    gasLimit: web3.utils.toHex(gasLimit),
-    to: contractAddress,
-    value: '0x00',
-    r: web3.utils.toHex(chainId),
-    v: '0x',
-    s: '0x',
-    //type: '0x02'
-  }
-
-  return txData
-}
-
-const sign = async function (ledger, tx, nonce) {
-  const args = tx.split(' ')
-  let token, instruction
-  switch (args[0]) {
+  let functions = []
+  switch (token) {
     case 'USDT':
-      token = 'd077a400968890eacc75cdc901f0356c943e4fdb'
+      tokenAddress = 'd077a400968890eacc75cdc901f0356c943e4fdb'
+      functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
       break
     case 'EURT':
-      token = ''
+      tokenAddress = ''
+      functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
       break
     case 'XAUT':
-      token = ''
+      tokenAddress = ''
+      functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
+      break
+    case 'AUSDT':
+      tokenAddress = ''
+      functions=['redeem','transfer','mint','freeze','unfreeze','destroy']
       break
     case 'ADMIN':
-      token = ''
+      tokenAddress = 'c4f0da6cd355f13df3bb1741b4bb2a5d9373a55d'
+      functions=['removeOwner','revokeConfirmation','addOwner','changeRequirement','confirmTransaction','submitTransaction','replaceOwner','executeTransaction']
+      break
+    case 'ORACLE':
+      tokenAddress = ''
+      functions=['claimOwnership','setOperator','transferOwnership','setMaximumDeltaPercentage','setThreshold','freezeOracle','unfreezeOracle']
+      break
+    case 'PERMISSIONCONTROL':
+      tokenAddress = '316907d43188851d710e49590311c4658d6ad0b3'
+      functions=['claimOwnership','setOperator','transferOwnership']
       break
   }
 
-  switch (args[1]) {
+  if (!functions.includes(action)) {
+    console.log(`Unsupported function ${action} called on ${token} Contract`)
+    return
+ }
+
+  switch (action) {
     case 'issue':
-      //instruction = 'cc872b66' + padLeftZeros(parseInt(args[2]).toString(16))
-      console.log('Note: kaia uses "mint dst-address amount"')
-      return
+      instruction = 'cc872b66' + padLeftZeros(parseInt(args[2]).toString(16))
       break
     case 'redeem':
       instruction = 'db006a75' + padLeftZeros(parseInt(args[2]).toString(16))
@@ -128,190 +101,134 @@ const sign = async function (ledger, tx, nonce) {
       instruction = '99a88ec4' +  padLeftZeros(proxyAddr) + padLeftZeros(implimentationAddr)
       break
     case 'addOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = '7065cb48' + padLeftZeros(args[2].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
-      }
+      instruction = '7065cb48' + padLeftZeros(args[2].substr(2).toLowerCase())
       break
     case 'removeOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = '173825d9' + padLeftZeros(args[2].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
-      }
+      instruction = '173825d9' + padLeftZeros(args[2].substr(2).toLowerCase())
       break
     case 'replaceOwner':
-      if (args[0] == 'ADMIN') {
-        instruction = 'e20056e6' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(args[3].substr(2).toLowerCase())
-      } else {
-        console.log('Admin function called on non Admin Contract')
-        return
+      instruction = 'e20056e6' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(args[3].substr(2).toLowerCase())
+      break
+    case 'claimOwnership':
+      instruction = '4e71e0c8'
+      break
+    case 'transferOwnership':
+      //disable direct/renounce for now
+      direct='0'  //True if `newOwner` should be set immediately. False if `newOwner` needs to use `claimOwnership`.
+      renounce='0' //Allows the `newOwner` to be `address(0)` if `direct` and `renounce` is True. Has no effect otherwise.
+      instruction = '078dfbe7' + padLeftZeros(direct) + padLeftZeros(renounce)
+      break
+    case 'freezeOracle':
+      instruction = '62a5af3b'
+      break
+    case 'unfreezeOracle':
+      instruciton = '6a28f000'
+      break
+    case 'setMaximumDeltaPercentage':
+      instruction = 'abee062b' + padLeftZeros(parseInt(args[2]).toString(16))
+      break
+    case 'setOperator':
+      let status='0'
+      if (args[3]) {
+        status='1'
       }
+      instruction = '558a7297' + padLeftZeros(args[2].substr(2).toLowerCase()) + padLeftZeros(status)
+      break
+    case 'setThreshold':
+      instruction = 'e5a98603' + padLeftZeros(parseInt(args[2]).toString(16))
       break
   }
-  // for a transfer needs to be 44 instead of 24
+  // for a transfer needs to be 44 instead of 24 longer
   //const lengthParam = tx.length > 70 ? 44 : 24
   const lengthParam = args.length > 3 ? 44 : 24
-  const data = `0xc6427474000000000000000000000000${token}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000${lengthParam}${instruction}`
-  var txData = getTxData(nonce, data)
-  var txo = LegacyTransaction.fromTxData(txData, { common })
-  var rawtx = txo.getMessageToSign()
+  const data = `0xc6427474000000000000000000000000${tokenAddress}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000${lengthParam}${instruction}`
+  const txData = getTxData(nonce, data, gasLimit, gasPrice, maxFeePerGas, contractAddress);
+  const txo = FeeMarketEIP1559Transaction.fromTxData(txData, { common });
+  const rawtx = txo.getMessageToSign();
 
-  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m nAvax, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',gasPrice/10e8,parseInt(nonce),tx,data,)
-  let result
+  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',gasPrice,parseInt(nonce),tx,data,)
+
+  let result;
   try {
-/*
-      let loadConfig={
-      nftExplorerBaseURL: "https://nft.api.live.ledger.com/v1/ethereum",
-      pluginBaseURL: "https://cdn.live.ledger.com",
-      extraPlugins: null,
-      cryptoassetsBaseURL: "https://cdn.live.ledger.com/cryptoassets",
-    }
-    let resolutionConfig = {
-      nft: true,
-      erc20: true,
-      externalPlugins: true,
-    };
-*/
-    let resolution = {
-      nfts: [],
-      erc20Tokens: [],
-      externalPlugin: [],
-      plugin: [],
-      domains: []
-    }
-    //const resolution = await ledgerService.resolveTransaction( bytesToHex(rawtx).substring(2),{},{})
-    result = await ledger.signTransaction(config.hd_path, RLP.encode(rawtx), resolution)
-    //console.log(result)
+    const resolution = await ledgerService.resolveTransaction(bytesToHex(rawtx).substring(2), {}, {});
+    result = await ledger.signTransaction(config.hd_path, rawtx, resolution);
   } catch (err) {
     console.log("Sign Operation Error: \x1b[32m%s\x1b[0m",err.message)
-    return
+    return;
   }
 
   // Store signature in transaction
-  txData['v'] = '0x'+result['v']
-  txData['r'] = '0x'+result['r']
-  txData['s'] = '0x'+result['s']
-  var signedTx = LegacyTransaction.fromTxData(txData, { common })
+  txData.v = '0x' + result.v;
+  txData.r = '0x' + result.r;
+  txData.s = '0x' + result.s;
+  const signedTx = FeeMarketEIP1559Transaction.fromTxData(txData, { common });
 
   console.log('---------------Begin Verification Checks---------------')
   console.log('Sending Address: \x1b[32m%s\x1b[0m',signedTx.getSenderAddress().toString('hex'))
-  //console.log('Valid Signature:',signedTx.verifySignature(),', Valid Gas Estimates:',signedTx.isValid())
   console.log('Valid Signature:',signedTx.verifySignature())
   var signedHex = bytesToHex(signedTx.serialize())
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
-  console.log("Broadcasting...")
-  await broadcast(signedHex)
-}
+  console.log(`Broadcasting Signed TX...`);
+  await broadcast(bytesToHex(signedTx.serialize()));
+};
 
-
-async function updateGas () {
-    ethGasStationData = await request
-      .post({
-        url: 'https://public-en-kairos.node.kaia.io',
-        body: {
-          method: 'eth_gasPrice',
-          id: 1,
-          jsonrpc: '2.0',
-          params: []
-        },
-        json: true
-      })
-    if (ethGasStationData.id == 1) {
-      //add a little buffer over api to handle slippage
-      gasPrice = parseInt(parseInt(ethGasStationData.result) * 1.1)
-      //gasPrice = parseInt(ethGasStationData.result)
-    } else {
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      await updateGas()
-    }
-}
-
-async function broadcast (signedtx) {
-    //broadcast final tx
-    try {
-      await web3.eth.sendSignedTransaction(signedtx, async function(err, hash) {
-        if (!err) {
-          console.log(hash);
-        } else {
-          console.log(err);
-        }
-      });
-    } catch (err) {
-      if (!err.message.includes("already known")) {
-        console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
-      }
-    }
-}
-
-
-async function broadcastKaia (signedtx) {
-    //broadcast final tx
-
-    var options = {
-      method: 'POST',
-      url: 'https://public-en.node.kaia.io',
-      body: {
-        method: 'eth_sendRawTransaction',
-        id: 1,
-        jsonrpc: "2.0",
-        params: [ signedtx ]
-      },
-      json: true
-    }
-
-    request(options)
-      .then(function (txResult) {
-        console.log(txResult.result);
-      })
-      .catch(function (err) {
-        console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
-      });
-}
-
-console.log('Config:')
-console.log(config)
-console.log('txs:')
-console.log(txs)
-
-rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
-  if (answer !== 'y') {
-    console.log('Exiting')
-    return process.exit(1)
+async function main() {
+  let txs;
+  let filePath = myArgs[0];
+  if (fs.existsSync(filePath)) {
+    txs = fs.readFileSync(filePath, 'utf8').toString().split('\n').filter(Boolean);
+  } else {
+    txs = [myArgs.join(' ')];
   }
 
-  console.log('Initializing....')
+  console.log('Config:')
+  console.log(config)
+  console.log('txs:')
+  console.log(txs)
 
-  try {
-    const ledger = await createLedger()
-    let signer = await ledger.getAddress(config.hd_path)
-    let nonce = await web3.eth.getTransactionCount(signer.address)
-    console.log("Signing Address:", signer.address)
-    console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
+  rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
+    if (answer !== 'y') {
+      console.log('Exiting')
+      return process.exit(1)
+    }
+
+    console.log('Initializing....')
 
     try {
-      for (const tx of txs) {
-        if (tx[0] != "#") {
-          await updateGas()
-          await sign(ledger, tx, nonce)
-          nonce++
+      let txCountS = parseInt(await adminMSIG.methods.transactionCount().call())
+      const ledger = await createLedger()
+      let signer = await ledger.getAddress(config.hd_path)
+      let nonce = await web3.eth.getTransactionCount(signer.address)
+      console.log("Signing Address:", signer.address)
+      console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
+
+      try {
+        for (const tx of txs) {
+          if (!tx.startsWith('#')) {
+            ({ gasPrice, maxFeePerGas } = await updateGas());
+            await sign(ledger, tx, nonce);
+            nonce++;
+          }
         }
+      } catch (err) {
+        console.log(err)
       }
+
+      //give time for final broadcast to finish
+      console.log('Closing Ledger...')
+      console.log('Checking Txs status')
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      console.log('Finished')
+      await processList([txCountS],false,true,false);
+      let txCountF = parseInt(await adminMSIG.methods.transactionCount().call()) - 1;
+      console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
+      process.exit()
     } catch (err) {
       console.log(err)
+      process.exit(1)
     }
-    //give time for final broadcast to finish
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  })
+}
 
-    console.log('Finished')
-    console.log('Closing Ledger...')
-    process.exit(1)
-  } catch (err) {
-    console.log(err)
-    process.exit(1)
-  }
-})
+main();
