@@ -1,0 +1,10 @@
+{
+  "web3url":"https://evm.kava.io",
+  "etherscanApiKey":"",
+  "gasPrice": 10,
+  "gasLimit": 250000,
+  "contract_address": "0x10b4Af8E4eFB44a953081c36A3F6ea2c0e9B4E8A",
+  "filePath": "./tornado.freeze",
+  "hd_path": "44'/60'/0'/0/0",
+  "signerAddress": ""
+}
