@@ -5,7 +5,7 @@ const {
   padLeftZeros,
   getTxData,
   updateGas,
-  broadcastFlashbot,
+  broadcast,
   web3,
   common,
   FeeMarketEIP1559Transaction,
@@ -17,7 +17,6 @@ const {
   fs,
 } = require('./common');
 
-const { getStatus } = require('./flashbotStatus.js');
 const { processList } = require('./helperQueryManagement');
 
 const config = require('./ethConfig.json');
@@ -64,7 +63,7 @@ const sign = async (ledger, tx, nonce, action) => {
   var signedHex = bytesToHex(signedTx.serialize())
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
-  await broadcastFlashbot(signedHex);
+  await broadcast(signedHex);
 };
 
 async function main() {

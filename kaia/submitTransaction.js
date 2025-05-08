@@ -170,7 +170,7 @@ const sign = async (ledger, tx, nonce) => {
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
   console.log(`Broadcasting Signed TX...`);
-  await broadcast(bytesToHex(signedTx.serialize()));
+  await broadcast(signedHex);
 };
 
 async function main() {
