@@ -169,12 +169,9 @@ async function main() {
 
       //give time for final broadcast to finish
       console.log('Closing Ledger...')
+      console.log("Checking TX Status");
       await new Promise(resolve => setTimeout(resolve, 3000));
       console.log('Finished')
-
-      await getStatus(txHashes);
-      console.log("Checking TX Status");
-      await new Promise(resolve => setTimeout(resolve, 2000));
       await processList(data,true);
       process.exit(0)
     } catch (err) {
