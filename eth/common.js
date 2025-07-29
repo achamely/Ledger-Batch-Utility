@@ -182,15 +182,15 @@ function decodeData(hex) {
 }
 
 
-async function updateGas() {
+async function updateGas(baseGas = 2) {
   let ethGasStationData = await request.get({
     url: `https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${config.etherscanApiKey}`,
     json: true,
   });
   if (ethGasStationData.status === '1') {
     let gasPrice = parseInt(ethGasStationData.result.FastGasPrice) - parseInt(ethGasStationData.result.ProposeGasPrice);
-    if (gasPrice < 2) {
-      gasPrice = 2
+    if (gasPrice < baseGas) {
+      gasPrice = baseGas
     }
     let maxFeePerGas = ((parseInt(ethGasStationData.result.suggestBaseFee) * 2) + gasPrice) * 10e8;
     return { gasPrice, maxFeePerGas };
@@ -225,6 +225,7 @@ async function broadcastEtherscan(signedtx) {
   }
 }
 
+
 async function broadcastFlashbot(signedtx) {
   console.log('Broadcasting to Flashbot...');
   try {
@@ -244,6 +245,33 @@ async function broadcastFlashbot(signedtx) {
     } else {
       console.log(response.result);
       txHashes.push(response.result);
+    }
+  } catch (err) {
+    console.log("Flashbot Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+  }
+}
+
+async function broadcastFlashbotBundle(signedtxarray) {
+  console.log('Broadcasting to Flashbot...');
+  try {
+    let response = await request.post({
+      headers: { 'content-type': 'application/json' },
+      url: 'https://rpc.flashbots.net/fast',
+      body: {
+        jsonrpc: '2.0',
+        method: 'eth_sendBundle',
+        params: [{
+          txs: signedtxarray,
+        }],
+        id: 1,
+      },
+      json: true,
+    });
+    if (response.error) {
+      console.log('Flashbot Broadcast Error:', response.error.message);
+    } else {
+      console.log(response.result.bundleHash);
+      txHashes.push(response.result.bundleHash);
     }
   } catch (err) {
     console.log("Flashbot Broadcast Failed: \x1b[32m%s\x1b[0m",err)
@@ -272,6 +300,7 @@ module.exports = {
   broadcast,
   broadcastEtherscan,
   broadcastFlashbot,
+  broadcastFlashbotBundle,
   confirmBroadcast,
   web3,
   common,

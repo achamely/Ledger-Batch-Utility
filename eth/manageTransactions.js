@@ -174,7 +174,11 @@ async function main() {
                   process.exit(0);
               }
 
-              ({ gasPrice, maxFeePerGas } = await updateGas());
+              let baseGas = 2;
+              if (bundleFlag) {
+                baseGas = 4;
+              }
+              ({ gasPrice, maxFeePerGas } = await updateGas(baseGas));
               await sign(ledger, tx, nonce, action, bundleFlag);
               nonce++;
 
