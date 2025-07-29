@@ -27,7 +27,7 @@ const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
 let txs;
 
-const sign = async (ledger, tx, nonce, action) => {
+const sign = async (ledger, tx, nonce, action, bundleFlag) => {
   let inst;
   switch (action) {
     case 'confirm':
@@ -62,18 +62,37 @@ const sign = async (ledger, tx, nonce, action) => {
   //console.log('Valid Signature:',signedTx.verifySignature(),', Valid Gas Estimates:',signedTx.isValid())
   console.log('Valid Signature:',signedTx.verifySignature())
   var signedHex = bytesToHex(signedTx.serialize())
-  console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
-  await broadcastFlashbot(signedHex);
+  console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
+  if (bundleFlag) {
+    console.log('\x1b[35m Send signed hex to Bundling admin !!!\x1b[0m');
+  } else {
+    await broadcastFlashbot(signedHex);
+  }
 };
 
 async function main() {
   const myArgs = process.argv.slice(2);
+
+  var bundleFlag=false;
+  for (let i = 0; i < myArgs.length; i++) {
+    const arg = myArgs[i];
+    if (arg.toString().startsWith('--')) {
+      const key = arg.slice(2);
+      myArgs.splice(i,1)
+      if (key.toLowerCase()=='b') {
+        bundleFlag=true
+      }
+    }
+  }
+
+
   let action = myArgs[0].toLowerCase();
   if ( !['confirm','revoke'].includes(action) || myArgs.length < 2) {
     console.log("\x1b[31m Invalid Syntax. Please call with following format: \x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js <action> <filepath || tx || csv_list_of_txs>\x1b[0m");
     console.log(" Valid options for action are \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
+    console.log(" Add --b to generate signed tx for bundles without broadcasting");
     console.log(" Examples:")
     console.log("\x1b[32m    node manageTransactions.js confirm txs.to_confirm \x1b[0m");
     console.log(" or")
@@ -88,8 +107,10 @@ async function main() {
     txs = myArgs[1].split(',').filter(Boolean);
   }
 
+
   console.log('Config:')
   console.log(config)
+  console.log('\nBundle Tx Generation is ',bundleFlag,'\n');
   console.log('txs:')
   //console.log(txs)
   let sortedTxs={};
@@ -154,7 +175,7 @@ async function main() {
               }
 
               ({ gasPrice, maxFeePerGas } = await updateGas());
-              await sign(ledger, tx, nonce, action);
+              await sign(ledger, tx, nonce, action, bundleFlag);
               nonce++;
 
             } else {
@@ -173,10 +194,12 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 3000));
       console.log('Finished')
 
-      await getStatus(txHashes);
-      console.log("Checking TX Status");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await processList(data,true);
+      if (!bundleFlag) {
+        await getStatus(txHashes);
+        console.log("Checking TX Status");
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await processList(data,true);
+      }
       process.exit(0)
     } catch (err) {
       console.log(err)
