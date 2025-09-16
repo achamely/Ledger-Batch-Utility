@@ -6,12 +6,13 @@ const {
   getTxData,
   updateGas,
   broadcastFlashbot,
+  bundleRebroadcast,
   web3,
   common,
   FeeMarketEIP1559Transaction,
   bytesToHex,
   ledgerService,
-  rl,
+  askQuestion,
   adminMSIG,
   txHashes,
   fs,
@@ -19,6 +20,7 @@ const {
 
 const { getStatus } = require('./flashbotStatus.js')
 const { processList } = require('./helperQueryManagement');
+const { randomUUID } = require('crypto');
 
 const config = require('./ethConfig.json');
 const request = require('request-promise');
@@ -28,11 +30,23 @@ const contractAddress = config.contract_address;
 const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
 
-const sign = async (ledger, tx, nonce) => {
+const sign = async (ledger, tx, nonce, bundleFlag) => {
   const args = tx.split(' ');
   let tokenAddress, instruction;
   let token = args[0].toUpperCase();
   let action = args[1].toLowerCase();
+  let sig1, sig2;
+
+  if ((args[3] != undefined) && (args[3].slice(0,2) == '0x'))  {
+    sig1 = args[3]
+    console.log('sig1',sig1);
+  }
+
+  if ((args[4] != undefined) && (args[4].slice(0,2) == '0x')) {
+    sig2 = args[4]
+    console.log('sig2',sig2);
+  }
+
 
   let functions = []
   switch (token) {
@@ -185,11 +199,42 @@ const sign = async (ledger, tx, nonce) => {
   var signedHex = bytesToHex(signedTx.serialize())
   console.log('Signed Hex: \x1b[32m%s\x1b[0m',signedHex)
 
-  console.log(`Broadcasting Signed TX...`);
-  await broadcastFlashbot(bytesToHex(signedTx.serialize()));
+  if (sig1 && sig2) {
+    console.log(`Broadcasting Signed TX BUNDLE...`);
+    let signedtxarray = [bytesToHex(signedTx.serialize()), sig1, sig2]
+    console.log(signedtxarray);
+    await bundleRebroadcast(signedtxarray);
+  } else {
+    console.log(`Broadcasting Signed TX...`);
+    if (bundleFlag) {
+      let uuid=randomUUID();
+      await broadcastFlashbot(bytesToHex(signedTx.serialize()),uuid);
+    } else {
+      await broadcastFlashbot(bytesToHex(signedTx.serialize()));
+    }
+  }
 };
 
 async function main() {
+
+  let bundleFlag=false;
+  for (let i = 0; i < myArgs.length; i++) {
+    const arg = myArgs[i];
+    if (arg.toString().startsWith('--')) {
+      const key = arg.slice(2);
+      myArgs.splice(i,1)
+      if (key.toLowerCase()=='b') {
+        bundleFlag=true
+      }
+    }
+  }
+
+  if (bundleFlag) {
+    console.log("\n\n----------------------------------------------");
+    console.log("Bundle Cache Generation: \x1b[32m Enabled\x1b[0m");
+    console.log("----------------------------------------------\n\n");
+  }
+
   let txs;
   let filePath = myArgs[0];
   if (fs.existsSync(filePath)) {
@@ -203,51 +248,55 @@ async function main() {
   console.log('txs:')
   console.log(txs)
 
-  rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
-    if (answer !== 'y') {
-      console.log('Exiting')
-      return process.exit(1)
-    }
+  const answer = askQuestion('\nIs the configuration correct? [y/n]: ');
+  if (answer !== 'y') {
+    console.log('Exiting')
+    return process.exit(1)
+  }
 
-    console.log('Initializing....')
+  console.log('Initializing....')
+
+  try {
+    let txCountS = parseInt(await adminMSIG.methods.transactionCount().call())
+    const ledger = await createLedger()
+    let signer = await ledger.getAddress(config.hd_path)
+    let nonce = await web3.eth.getTransactionCount(signer.address)
+    console.log("Signing Address:", signer.address)
+    console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
 
     try {
-      let txCountS = parseInt(await adminMSIG.methods.transactionCount().call())
-      const ledger = await createLedger()
-      let signer = await ledger.getAddress(config.hd_path)
-      let nonce = await web3.eth.getTransactionCount(signer.address)
-      console.log("Signing Address:", signer.address)
-      console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
-
-      try {
-        for (const tx of txs) {
-          if (!tx.startsWith('#')) {
-            ({ gasPrice, maxFeePerGas } = await updateGas());
-            await sign(ledger, tx, nonce);
-            nonce++;
-          }
+      for (const tx of txs) {
+        if (!tx.startsWith('#')) {
+          ({ gasPrice, maxFeePerGas } = await updateGas());
+          await sign(ledger, tx, nonce, bundleFlag);
+          nonce++;
         }
-      } catch (err) {
-        console.log(err)
       }
+    } catch (err) {
+      console.log(err)
+    }
 
-      //give time for final broadcast to finish
-      console.log('Closing Ledger...')
-      console.log('Checking Txs status')
-      await new Promise(resolve => setTimeout(resolve, 10000));
+    //give time for final broadcast to finish
+    console.log('Closing Ledger...')
+    if (bundleFlag) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
       console.log('Finished')
+    } else {
+      console.log('Checking Txs status')
+      await new Promise(resolve => setTimeout(resolve, 6000));
       await getStatus(txHashes);
       //give time for getStatus to finish after last tx confirms
       await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Finished')
       await processList([txCountS],false,true,false);
       let txCountF = parseInt(await adminMSIG.methods.transactionCount().call()) - 1;
       console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
-      process.exit()
-    } catch (err) {
-      console.log(err)
-      process.exit(1)
     }
-  })
+    process.exit()
+  } catch (err) {
+    console.log(err)
+    process.exit(1)
+  }
 }
 
 main();

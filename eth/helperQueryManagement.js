@@ -3,6 +3,8 @@ const {
   decodeData,
 } = require('./common');
 
+const { getBalance } = require('./helperQueryBalance.js');
+
 let detailFlag, printSummary, printGroup;
 
 const interval = 300
@@ -30,13 +32,20 @@ async function getStatusHelper(tx) {
       addr = data.addr;
     }
 
+    let curBal = '-';
+    if (addr.length > 0) {
+      curBal = await getBalance('usdt', addr);
+      curBal = parseInt(curBal) / 1e6
+    }
+
     const ret = [
       tx,
       result.destination,
       method,
       addr,
       formatted_amount,
-      result.executed
+      result.executed,
+      curBal
     ];
 
     if (result.executed || !detailFlag) {
@@ -56,7 +65,7 @@ function checkPrint(ret) {
     sorted=respData.sort((a,b) => a[0] - b[0] )
 
     if (printSummary) {
-      console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed'].join(','));
+      console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed', 'Address_Balance'].join(','));
     }
 
     sorted.forEach(ele => {
@@ -77,8 +86,12 @@ function checkPrint(ret) {
 
     if (printGroup) {
       Object.entries(grouped).forEach(([key, value]) => {
-        console.log(`\nMethod: \x1b[35m${key}\x1b[0m, \x1b[33m${value.length}\x1b[0m transactions`);
-        console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed'].join(','));
+        let groupBalance = 0;
+        value.forEach(item => {
+          groupBalance += item[6];
+        });
+        console.log(`\nMethod: \x1b[35m${key}\x1b[0m, \x1b[33m${value.length}\x1b[0m transactions, Total Address Balances: \x1b[36m${groupBalance}\x1b[0m`);
+        console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed', 'Address_Balance'].join(','));
         value.forEach(ele => {
           if (ele[5]) {
             console.log('\x1b[32m%s\x1b[0m',ele.join(','));
@@ -94,7 +107,7 @@ function checkPrint(ret) {
 async function getConfirmationsHelper(tx,ret) {
   await adminMSIG.methods.getConfirmations(tx).call().then( result=> {
     rl = result.length
-    ret = ret.concat(rl+" - "+result)
+    ret = ret.concat(rl+" - "+result.toString().replace(',',';'))
     //console.log(ret.join(","));
     //console.log('\x1b[33m%s\x1b[0m',ret.join(','));
     checkPrint(ret)
@@ -143,9 +156,20 @@ async function processList(list, df, ps, pg) {
         if (sData.includes(",")) {
           itemList = sData.split(",")
           itemList.forEach((item) => {
-            item=parseInt(item)
-            if (item <= end) {
-              txList.push(item)
+            if (item.includes("-")) {
+              rItems = item.split("-")
+              start = parseInt(rItems[0]);
+              finish = parseInt(rItems[1]);
+              if (finish > end) {
+                finish = end;
+              }
+              rList = range(start,finish,1);
+              rList.forEach((ri) => { txList.push(ri)});
+            } else {
+              item=parseInt(item)
+              if (item <= end) {
+                txList.push(item)
+              }
             }
           });
         }
