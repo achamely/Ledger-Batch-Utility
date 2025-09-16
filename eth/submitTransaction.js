@@ -3,6 +3,7 @@
 const {
   createLedger,
   padLeftZeros,
+  isValidUuidV4,
   getTxData,
   updateGas,
   broadcastFlashbot,
@@ -29,6 +30,8 @@ const myArgs = process.argv.slice(2);
 const contractAddress = config.contract_address;
 const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
+
+let bundle_uuid = randomUUID();
 
 const sign = async (ledger, tx, nonce, bundleFlag) => {
   const args = tx.split(' ');
@@ -207,8 +210,7 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
   } else {
     console.log(`Broadcasting Signed TX...`);
     if (bundleFlag) {
-      let uuid=randomUUID();
-      await broadcastFlashbot(bytesToHex(signedTx.serialize()),uuid);
+      await broadcastFlashbot(bytesToHex(signedTx.serialize()),bundle_uuid);
     } else {
       await broadcastFlashbot(bytesToHex(signedTx.serialize()));
     }
@@ -224,7 +226,12 @@ async function main() {
       const key = arg.slice(2);
       myArgs.splice(i,1)
       if (key.toLowerCase()=='b') {
-        bundleFlag=true
+        bundleFlag=true;
+        let uuid = myArgs[i];
+        if (isValidUuidV4(uuid)) {
+          bundle_uuid = uuid;
+          myArgs.splice(i,1);
+        }
       }
     }
   }
@@ -232,6 +239,7 @@ async function main() {
   if (bundleFlag) {
     console.log("\n\n----------------------------------------------");
     console.log("Bundle Cache Generation: \x1b[32m Enabled\x1b[0m");
+    console.log(`Using Bundle Cache ID: \x1b[33m ${bundle_uuid} \x1b[0m`);
     console.log("----------------------------------------------\n\n");
   }
 
@@ -248,7 +256,8 @@ async function main() {
   console.log('txs:')
   console.log(txs)
 
-  const answer = askQuestion('\nIs the configuration correct? [y/n]: ');
+  const answer = await askQuestion('\nIs the configuration correct? [y/n]: ');
+
   if (answer !== 'y') {
     console.log('Exiting')
     return process.exit(1)

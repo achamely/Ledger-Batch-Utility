@@ -132,6 +132,13 @@ function getTxData(nonce, data, gasLimit, gasPrice, maxFeePerGas, contractAddres
 
 async function decodeBundleTxs(txList) {
   let retval=[]
+  let nextTx = '-';
+  try {
+    nextTx = parseInt(await adminMSIG.methods.transactionCount().call());
+  } catch (err) {
+    console.log(`Tried to get transaction count for contract ${adminMSIG._address}, but got err: ${err}`);
+  }
+
   for (const rawTxHex of txList){
     let dtx = decodeRawHex(rawTxHex);
     let dest = dtx.to;
@@ -141,18 +148,15 @@ async function decodeBundleTxs(txList) {
     let dd = abiDecode(contractABI,data);
     if (dd['function']=='submitTransaction') {
       let destContract = getContract(dest,true);
-      let nextTx = '-';
-      try {
-        nextTx = await adminMSIG.methods.transactionCount().call();
-      } catch (err) {
-        console.log(`Tried to get transaction count for contract ${dest}, but got err: ${err}`);
-      }
       let exDest = dd['data'][0];
       let exData = dd['data'][2];
       let exDD = decodeData(exData);
-      //let exContractABI = contractAbiList[exDest];
-      //let exDD = abiDecode(exContractABI,exData);
       retval.push(`${nextTx}*,${exDest},${exDD['method']},${exDD['addr']},${exDD['value']},${from}`);
+      try {
+        nextTx = nextTx + 1;
+      } catch (err)  {
+        //couldn't figure out next txid
+      }
     } else {
       retval.push(`${parseInt(dd['data'][0])}*,${dest},${dd['function']},-,-,${from}`);
     }
@@ -628,6 +632,7 @@ async function flashbots_getBundleStatsV2(hash,target) {
 module.exports = {
   createLedger,
   padLeftZeros,
+  isValidUuidV4,
   getTxData,
   decodeBundleTxs,
   decodeData,

@@ -143,7 +143,7 @@ async function main() {
       console.log(`\x1b[33m${pTx} \x1b[0m`)
     })
     console.log("===============================================================================================================================\n\n");
-    console.log("\x1b[36mNote: the displayed Pending MultiSig TX Number* is calculated. If another multisig tx is submitted before this one, this will change.");
+    console.log("\x1b[36mNote: the displayed Pending MultiSig TX Number* is calculated. If another multisig tx is submitted before this bundle, this will change.");
     console.log("To avoid confirmation issues in bundle, Please ensure this bundle is broadcasted before submitting new msig txs to the blockchain.\n\n\n\x1b[0m")
 
     if (action == 'broadcast') {
