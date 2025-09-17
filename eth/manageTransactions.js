@@ -216,7 +216,7 @@ async function main() {
           let signers=[];
           if (txDetails) {
             executed = txDetails[4];
-            signers = txDetails[5];
+            signers = txDetails[6];
           }
           if (!executed) {
             switch (action) {
