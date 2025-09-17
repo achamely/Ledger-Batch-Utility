@@ -16,6 +16,7 @@
     "@ledgerhq/hw-app-trx": "^6.28.4",
     "@ledgerhq/hw-transport-node-hid": "^6.28.4",
     "@ledgerhq/live-common": "^33.6.1",
+    "ethers": "^6.15.0",
     "request-promise": "^4.2.6",
     "tronweb": "^5.3.2",
     "web3": "^4.6.0"

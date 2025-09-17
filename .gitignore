@@ -5,7 +5,6 @@ npm-debug.log
 config/*.json
 !config/facs/*.json.example
 config/facs/*.json
-package-lock.json
 Ledger-Dash*
 DASH
 yarn.lock
@@ -17,3 +16,4 @@ tronConfig.json
 *old*
 tx.*
 txs*
+.flashbot.reputation
