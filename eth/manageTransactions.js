@@ -84,14 +84,14 @@ async function main() {
   for (let i = 0; i < myArgs.length; i++) {
     const arg = myArgs[i];
     if (arg.toString().startsWith('--')) {
-      const key = arg.slice(2);
+      const key = arg.slice(2).toLowerCase();
       myArgs.splice(i,1);
-      if (key.toLowerCase()=='b') {
+      if (key=='b') {
         bundleFlag=true
         uuid = myArgs[i];
         myArgs.splice(i,1);
       }
-      if (key.toLowerCase()=='r') {
+      if (['r','raw'].includes(key)) {
         rawFlag=true
       }
     }
@@ -99,8 +99,6 @@ async function main() {
 
   if (bundleFlag && rawFlag) {
     console.log("Note: --r Raw Flag disables submitting to --b Bundle Cache");
-    //console.log("Bundle Cache disabled");
-    //bundleFlag=false;
   }
 
   let action = myArgs[0] || '';
@@ -123,8 +121,12 @@ async function main() {
   }
 
 
-  let bbText = bundleFlag? 'Enabled' : 'Disabled'
-  console.log(`\nBundle Operations \x1b[33m${bbText}\x1b[0m \n`);
+  let bbText = bundleFlag? 'Enabled' : 'Disabled';
+  let rText = rawFlag? 'Enabled' : 'Disabled';
+  console.log('\n-------------------------------------------------');
+  console.log(`Bundle Operations \x1b[33m${bbText}\x1b[0m`);
+  console.log(`Raw Output \x1b[33m${rText}\x1b[0m`);
+  console.log('-------------------------------------------------\n');
   if (bundleFlag) {
     let bundleTxs = await getFlashbotBundleCache(uuid);
 
