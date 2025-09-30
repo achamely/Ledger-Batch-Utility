@@ -341,7 +341,7 @@ function decodeData(hex) {
 
 async function updateGas(baseGas = 2) {
   let ethGasStationData = await request.get({
-    url: `https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey=${config.etherscanApiKey}`,
+    url: `https://api.etherscan.io/v2/api?chainid=1&module=gastracker&action=gasoracle&apikey=${config.etherscanApiKey}`,
     json: true,
   });
   if (ethGasStationData.status === '1') {
@@ -373,7 +373,7 @@ async function broadcastEtherscan(signedtx) {
   console.log('Broadcasting to Etherscan...');
   try {
     let response = await request({
-      url: `https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=${signedtx}&apikey=${config.etherscanApiKey}`,
+      url: `https://api.etherscan.io/v2/api?chainid=1&module=proxy&action=eth_sendRawTransaction&hex=${signedtx}&apikey=${config.etherscanApiKey}`,
       json: true,
     });
     console.log(response.result);
