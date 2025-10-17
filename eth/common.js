@@ -63,6 +63,33 @@ function contractAbiList(address) {
   return abi;
 }
 
+function getSymbol(address){
+  let sym='';
+  switch (address.toLowerCase()) {
+    case '0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828':
+      sym = 'ADMIN';
+      break
+    case '0xed03ed872159e199065401b6d0d487d78d9464aa':
+      sym = 'MXNT';
+      break
+    case '0x6e109e9dd7fa1a58bc3eff667e8e41fc3cc07aef':
+      sym = 'CNHT';
+      break
+    case '0xc581b735a1688071a1746c968e0798d642ede491':
+      sym = 'EURT';
+      break
+    case '0x68749665ff8d2d112fa859aa293f07a622782f38':
+      sym = 'XAUT';
+      break
+    case '0xdac17f958d2ee523a2206206994597c13d831ec7':
+      sym = 'USDT';
+      break
+    default:
+      console.log("Unknown token contract address",address);
+  }
+  return sym;
+}
+
 function getContract(id,isAddress=false) {
   let address;
   if (isAddress) {
@@ -630,6 +657,7 @@ async function flashbots_getBundleStatsV2(hash,target) {
 
 
 module.exports = {
+  getSymbol,
   createLedger,
   padLeftZeros,
   isValidUuidV4,

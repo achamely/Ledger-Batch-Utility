@@ -33,7 +33,14 @@ async function main() {
     process.exit(1)
   }
 
-  const addressList = fs.readFileSync(filePath).toString().split('\n').filter(Boolean);
+  let addressList;
+  let writeFile=true;
+  try {
+    addressList = fs.readFileSync(filePath).toString().split('\n').filter(Boolean);
+  } catch (e) {
+    addressList = [filePath];
+    writeFile=false;
+  }
 
   let lr;
   if (addressList[0].substring(0, 9) == 'Last Run,') {
@@ -45,9 +52,13 @@ async function main() {
 
   await processList(token, addressList, interval, results);
 
-  const ws = fs.createWriteStream(filePath);
   let ts = (new Date().toUTCString()).replace(',','')
-  ws.write('Last Run,' + ts + '\n');
+
+  let ws;
+  if (writeFile) {
+    ws = fs.createWriteStream(filePath);
+    ws.write('Last Run,' + ts + '\n');
+  }
 
   console.log('\n\n------------------------------');
   console.log(`  Balances for Token: ${token}`);
@@ -77,7 +88,9 @@ async function main() {
     } else {
       console.log('%s,\x1b[32m%s\x1b[0m,\x1b[33m%s\x1b[0m,\x1b[36m%s\x1b[0m', freeze, addr, bal, note);
     }
-    ws.write([addr, bal, note].join(",") + '\n');
+    if (writeFile) {
+      ws.write([addr, bal, note].join(",") + '\n');
+    }
   }
 
   console.log('\x1b[36mtotal_addr\x1b[0m,\x1b[33m%s\x1b[0m', gb / 1e6);

@@ -1,6 +1,7 @@
 const {
   adminMSIG,
   decodeData,
+  getSymbol,
 } = require('./common');
 
 const { getBalance } = require('./helperQueryBalance.js');
@@ -34,8 +35,10 @@ async function getStatusHelper(tx) {
 
     let curBal = '-';
     if (addr.length > 0) {
-      curBal = await getBalance('usdt', addr);
+      let sym = getSymbol(result.destination)
+      curBal = await getBalance(sym, addr);
       curBal = parseInt(curBal) / 1e6
+      curBal = `${curBal}_${sym}`
     }
 
     const ret = [
@@ -86,11 +89,20 @@ function checkPrint(ret) {
 
     if (printGroup) {
       Object.entries(grouped).forEach(([key, value]) => {
-        let groupBalance = 0;
+
+        let groupBalance = {};
         value.forEach(item => {
-          groupBalance += item[6];
+          let dt = item[6].split('_');
+          let bal = parseFloat(dt[0]);
+          let sym = dt[1];
+          if (groupBalance[sym]==undefined) {
+            groupBalance[sym] = bal;
+          } else {
+            groupBalance[sym] += bal;
+          }
         });
-        console.log(`\nMethod: \x1b[35m${key}\x1b[0m, \x1b[33m${value.length}\x1b[0m transactions, Total Address Balances: \x1b[36m${groupBalance}\x1b[0m`);
+
+        console.log(`\nMethod: \x1b[35m${key}\x1b[0m, \x1b[33m${value.length}\x1b[0m transactions, Total Address Balances: \x1b[36m${JSON.stringify(groupBalance)}\x1b[0m`);
         console.log(['TX', 'Destination', 'Method', 'Address', 'Value', 'Executed', 'Address_Balance'].join(','));
         value.forEach(ele => {
           if (ele[5]) {
