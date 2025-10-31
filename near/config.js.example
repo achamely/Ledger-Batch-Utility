@@ -1,0 +1,4 @@
+module.exports = {
+  ADMIN_SIGNING_ADDRESS: "ENTER ADMIM Public address here",
+  HD_PATH : "m/44'/397'/0'/0'/1'"
+};
