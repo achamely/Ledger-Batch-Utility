@@ -1,0 +1,23 @@
+Setup
+
+Install the latest near-cli-rs libraries
+
+`cargo install near-cli-rs`
+
+Note: You may need to update rust with `rustup update`
+
+Once near client is installed `cp config.js.example` to `config.js` and update the config file to insert the admin signing address. 
+
+
+Usage
+
+node submitTx.js <action> <target>
+
+Available actions
+
+freeze/unfreeze/destroy : <target> is the address to affect
+
+mint : <target> is the full raw amount to mint to tether-treasury.near. i.e. 100 USDt = 100000000
+
+confirm/unconfirm : <target> is the msig id to confirm/unconfirm
+
