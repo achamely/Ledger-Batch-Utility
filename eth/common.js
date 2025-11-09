@@ -464,7 +464,7 @@ async function generateFlashbotSignature(msg) {
   try {
     const data = fs.readFileSync(bundlePhraseFile, 'utf8');
     // File exists, use mnemonic from file
-    bundlePhrase = data;
+    bundlePhrase = data.trim();
   } catch (err) {
     if (err.code === 'ENOENT') {
       // File does not exist, create it and write mnemonic

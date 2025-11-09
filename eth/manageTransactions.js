@@ -7,6 +7,7 @@ const {
   decodeBundleTxs,
   updateGas,
   broadcastFlashbot,
+  bundleRebroadcast,
   getFlashbotBundleCache,
   web3,
   common,
