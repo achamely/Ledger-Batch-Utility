@@ -203,7 +203,7 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
   const txo = FeeMarketEIP1559Transaction.fromTxData(txData, { common });
   const rawtx = txo.getMessageToSign();
 
-  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m \nAdmin Msig: \x1b[32m%s\x1b[0m \nInputData: \x1b[32m%s\x1b[0m',gasPrice,parseInt(nonce),tx,contractAddress,data,)
+  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m \nAdmin Msig: \x1b[33m%s\x1b[0m \nInputData: \x1b[32m%s\x1b[0m',gasPrice,parseInt(nonce),tx,contractAddress,data,)
 
   let result;
   try {
