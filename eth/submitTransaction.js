@@ -14,7 +14,8 @@ const {
   bytesToHex,
   ledgerService,
   askQuestion,
-  adminMSIG,
+  getContract,
+  getContractAddress,
   txHashes,
   fs,
 } = require('./common');
@@ -27,11 +28,11 @@ const config = require('./ethConfig.json');
 const request = require('request-promise');
 const myArgs = process.argv.slice(2);
 
-const contractAddress = config.contract_address;
 const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
 
 let bundle_uuid = randomUUID();
+let adminStats = {};
 
 const sign = async (ledger, tx, nonce, bundleFlag) => {
   const args = tx.split(' ');
@@ -51,36 +52,59 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
   }
 
 
+  let contractAddress;
   let functions = []
   switch (token) {
     case 'USDT':
       tokenAddress = 'dac17f958d2ee523a2206206994597c13d831ec7'
       functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
+      contractAddress = getContractAddress('ADMIN')
       break
     case 'EURT':
       tokenAddress = 'C581b735A1688071A1746c968e0798D642EDE491'
       functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
+      contractAddress = getContractAddress('ADMIN')
       break
     case 'XAUT':
       tokenAddress = '68749665ff8d2d112fa859aa293f07a622782f38'
       functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
+      contractAddress = getContractAddress('ADMIN')
       break
     case 'AUSDT':
       tokenAddress = '9EEAD9ce15383CaEED975427340b3A369410CFBF'
       functions=['redeem','transfer','mint','freeze','unfreeze','destroy']
+      contractAddress = getContractAddress('ADMIN')
       break
     case 'ADMIN':
       tokenAddress = 'C6CDE7C39eB2f0F0095F41570af89eFC2C1Ea828'
       functions=['removeOwner','revokeConfirmation','addOwner','changeRequirement','confirmTransaction','submitTransaction','replaceOwner','executeTransaction']
+      contractAddress = getContractAddress('ADMIN')
       break
     case 'ORACLE':
       tokenAddress = '02c65719da4317d84d808740920d6f6285045660'
       functions=['claimOwnership','setOperator','transferOwnership','setMaximumDeltaPercentage','setThreshold','freezeOracle','unfreezeOracle']
+      contractAddress = getContractAddress('ADMIN')
       break
     case 'PERMISSIONCONTROL':
       tokenAddress = '316907d43188851d710e49590311c4658d6ad0b3'
       functions=['claimOwnership','setOperator','transferOwnership']
+      contractAddress = getContractAddress('ADMIN')
       break
+    case 'USAT':
+      tokenAddress = '68749665ff8d2d112fa859aa293f07a622782f38'
+      functions=['issue','redeem','transfer','mint','freeze','unfreeze','destroy']
+      contractAddress = getContractAddress('ADMIN_USAT')
+      break
+    case 'ADMIN_USAT':
+      tokenAddress = '0x62b3a0f6ffc5efd7692053A9040fE44F9AC8c5Cb'
+      functions=['removeOwner','revokeConfirmation','addOwner','changeRequirement','confirmTransaction','submitTransaction','replaceOwner','executeTransaction']
+      contractAddress = getContractAddress('ADMIN_USAT')
+      break
+  }
+
+  if (adminStats[contractAddress] == undefined) {
+    let adminMSIG = getContract(contractAddress,true);
+    adminStats[contractAddress] = parseInt(await adminMSIG.methods.transactionCount().call())
   }
 
   if (!functions.includes(action)) {
@@ -179,7 +203,7 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
   const txo = FeeMarketEIP1559Transaction.fromTxData(txData, { common });
   const rawtx = txo.getMessageToSign();
 
-  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m, InputData: \x1b[32m%s\x1b[0m',gasPrice,parseInt(nonce),tx,data,)
+  console.log('\nRequesting Ledger Sign: GasPrice: \x1b[32m%s\x1b[0m GWei, Nonce: \x1b[32m%s\x1b[0m, TX: \x1b[32m%s\x1b[0m \nAdmin Msig: \x1b[32m%s\x1b[0m \nInputData: \x1b[32m%s\x1b[0m',gasPrice,parseInt(nonce),tx,contractAddress,data,)
 
   let result;
   try {
@@ -266,7 +290,6 @@ async function main() {
   console.log('Initializing....')
 
   try {
-    let txCountS = parseInt(await adminMSIG.methods.transactionCount().call())
     const ledger = await createLedger()
     let signer = await ledger.getAddress(config.hd_path)
     let nonce = await web3.eth.getTransactionCount(signer.address)
@@ -297,9 +320,14 @@ async function main() {
       //give time for getStatus to finish after last tx confirms
       await new Promise(resolve => setTimeout(resolve, 2000));
       console.log('Finished')
-      await processList([txCountS],false,true,false);
-      let txCountF = parseInt(await adminMSIG.methods.transactionCount().call()) - 1;
-      console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
+      for (const adminMsigAddress in adminStats) {
+        let txCountS = adminStats[adminMsigAddress];
+        console.log("Processing for AdminMsig: ",adminMsigAddress);
+        await processList([txCountS],adminMsigAddress,false,true,false);
+        let adminMSIG = getContract(adminMsigAddress,true);
+        let txCountF = parseInt(await adminMSIG.methods.transactionCount().call()) - 1;
+        console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
+      }
     }
     process.exit()
   } catch (err) {

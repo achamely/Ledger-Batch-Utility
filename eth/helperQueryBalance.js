@@ -1,9 +1,5 @@
 const {
-  tetherUSDT,
-  tetherEURT,
-  tetherCNHT,
-  tetherMXNT,
-  tetherXAUT,
+  getContract,
   fs,
 } = require('./common');
 
@@ -27,28 +23,6 @@ async function retryPromise(fn, retries = MAX_RETRIES, delay = RETRY_DELAY) {
 
 function delayPromise(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function getContract(token) {
-  let contract;
-  switch (token.toUpperCase()) {
-    case 'MXNT':
-      contract = tetherMXNT;
-      break
-    case 'CNHT':
-      contract = tetherCNHT;
-      break
-    case 'EURT':
-      contract = tetherEURT;
-      break
-    case 'XAUT':
-      contract = tetherXAUT;
-      break
-    case 'USDT':
-    default:
-      contract = tetherUSDT;
-  }
-  return contract;
 }
 
 async function getBalance(token, addr) {

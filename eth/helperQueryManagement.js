@@ -1,5 +1,5 @@
 const {
-  adminMSIG,
+  getContract,
   decodeData,
   getSymbol,
 } = require('./common');
@@ -16,6 +16,7 @@ let grouped = {};
 let txList = [];
 var respData = [];
 var callsRemaining = 0;
+let adminMSIG;
 
 async function getStatusHelper(tx) {
   try {
@@ -152,10 +153,12 @@ async function getStatus() {
   });
 }
 
-async function processList(list, df, ps, pg) {
+async function processList(list, adminContract, df, ps, pg) {
   detailFlag = (df === undefined) ? false : df;
   printSummary = (ps === undefined) ? false : ps;
   printGroup = (pg === undefined) ? true : pg;
+
+  adminMSIG = getContract(adminContract,true);
 
   //make sure list is reset before processing again;
   respData.length=0

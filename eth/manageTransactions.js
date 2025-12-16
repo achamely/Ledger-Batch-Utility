@@ -15,7 +15,7 @@ const {
   bytesToHex,
   ledgerService,
   askQuestion,
-  adminMSIG,
+  getContractAddress,
   txHashes,
   fs,
 } = require('./common');
@@ -25,7 +25,7 @@ const { processList } = require('./helperQueryManagement');
 
 const config = require('./ethConfig.json');
 
-const contractAddress = config.contract_address;
+let contractAddress;
 const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
 let txs;
@@ -95,6 +95,10 @@ async function main() {
       if (['r','raw'].includes(key)) {
         rawFlag=true
       }
+      if (['c','ca'].includes(key)) {
+        contractAddress = myArgs[i].toLowerCase();
+        myArgs.splice(i,1);
+      }
     }
   }
 
@@ -118,13 +122,27 @@ async function main() {
     console.log("\x1b[32m    node manageTransactions.js confirm 5000 --b <bundle UUID>\x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js revoke 2000,2001 \x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js broadcast --b <bundle UUID>\x1b[0m");
+    console.log("\n Optional:");
+    console.log("   add \x1b[32m--ca <admin msig contract address>\x1b[0m to bypass ui prompt and force the admin msig to interact with\n\n");
     process.exit(0);
   }
 
+  if (contractAddress == undefined) {
+    console.log('\nPlease Select Admin Multisig to interact with:\n');
+    console.log('\x1b[33m1. 0xC6CDE7C39eB2f0F0095F41570af89eFC2C1Ea828 \x1b[0m (USDt,CNHt,MXNt,XAUt) \x1b[32m[Default]\x1b[0m\n');
+    console.log('\x1b[33m2. 0x62b3a0f6ffc5efd7692053A9040fE44F9AC8c5Cb \x1b[0m (USAt)\n');
+    const amq = await askQuestion('1 or 2 ? ');
+    if (amq === '2') {
+      contractAddress=getContractAddress('ADMIN_USAT');
+    } else {
+      contractAddress=getContractAddress('ADMIN');
+    }
+  }
 
   let bbText = bundleFlag? 'Enabled' : 'Disabled';
   let rText = rawFlag? 'Enabled' : 'Disabled';
   console.log('\n-------------------------------------------------');
+  console.log(`Selected Admin Msig Address \x1b[33m${contractAddress}\x1b[0m`);
   console.log(`Bundle Operations \x1b[33m${bbText}\x1b[0m`);
   console.log(`Raw Output \x1b[33m${rText}\x1b[0m`);
   console.log('-------------------------------------------------\n');
@@ -183,7 +201,7 @@ async function main() {
   //bundles won't have any data in processList
   if (!bundleFlag) {
     console.log('txs:')
-    await processList(data,true).then(res => {
+    await processList(data,contractAddress,true).then(res => {
       res.forEach(subArray => {
         if (subArray.length > 0) {
           const key = subArray[0]; // First element as key
@@ -267,7 +285,7 @@ async function main() {
       await getStatus(txHashes);
       console.log("Checking TX Status");
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await processList(data,true);
+      await processList(data,contractAddress,true);
     }
     process.exit(0)
   } catch (err) {

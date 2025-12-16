@@ -26,9 +26,9 @@ async function main() {
     token = myArgs[1].toUpperCase()
   }
 
-  if (!['USDT','EURT','CNHT','MXNT','XAUT'].includes(token)) {
+  if (!['USDT','EURT','CNHT','MXNT','XAUT','USAT'].includes(token)) {
     console.log('\x1b[31m Unknown Token:\x1b[35m',token,'\x1b[0m');
-    console.log('\x1b[33m Available Token options:\x1b[36m  "USDT" (Default), "EURT", "CNHT", "MXNT", "XAUT"\x1b[0m');
+    console.log('\x1b[33m Available Token options:\x1b[36m  "USDT" (Default), "EURT", "CNHT", "MXNT", "XAUT", "USAT"\x1b[0m');
     console.log('\x1b[32m node queryBalance.js address-file <token>\x1b[0m');
     process.exit(1)
   }
