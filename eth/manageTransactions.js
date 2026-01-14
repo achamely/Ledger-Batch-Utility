@@ -8,7 +8,8 @@ const {
   updateGas,
   broadcastFlashbot,
   bundleRebroadcast,
-  getFlashbotBundleCache,
+  getBundleCache,
+  clearBundleCache,
   web3,
   common,
   FeeMarketEIP1559Transaction,
@@ -109,9 +110,11 @@ async function main() {
   let action = myArgs[0] || '';
   action = action.toLowerCase();
 
-  if ( !['confirm','revoke','broadcast'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
+  if ( !['confirm','revoke','broadcast','clear'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
     console.log("\x1b[31m Invalid Syntax. Please call with following format: \x1b[0m\n");
     console.log("\x1b[32m    node manageTransactions.js broadcast --b <bundle UUID>\x1b[0m\n");
+    console.log("                       or\n");
+    console.log("\x1b[32m    node manageTransactions.js clear --b <bundle UUID>\x1b[0m\n");
     console.log("                       or\n");
     console.log("\x1b[32m    node manageTransactions.js <action> <filepath || tx || csv_list_of_txs>\x1b[0m");
     console.log("       Valid options for action are: \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
@@ -147,7 +150,7 @@ async function main() {
   console.log(`Raw Output \x1b[33m${rText}\x1b[0m`);
   console.log('-------------------------------------------------\n');
   if (bundleFlag) {
-    let bundleTxs = await getFlashbotBundleCache(uuid);
+    let bundleTxs = await getBundleCache(uuid);
 
     if (bundleTxs.length==0) {
       console.log('Please double check UUID, No Txs in Bundle')
@@ -178,6 +181,19 @@ async function main() {
       }
       return process.exit(0);
     }
+
+    if (action == 'clear') {
+      const bq = await askQuestion('\nDelete Bundle Txs from Queue? [y/n] ');
+      if (bq === 'y') {
+        await clearBundleCache(uuid);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Finished');
+      } else {
+        console.log("Exiting");
+      }
+      return process.exit(0);
+    }
+
   }
 
   console.log('Config:')

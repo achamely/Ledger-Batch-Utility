@@ -179,6 +179,13 @@ function isValidUuidV4(uuid) {
   return uuidV4Regex.test(uuid);
 }
 
+function getCFHeaders() {
+  return {
+    'CF-Access-Client-Id' : config.cfid,
+    'CF-Access-Client-Secret' : config.cfsecret
+  }
+}
+
 function getTxData(nonce, data, gasLimit, gasPrice, maxFeePerGas, contractAddress) {
   return {
     data,
@@ -447,30 +454,65 @@ async function broadcastEtherscan(signedtx) {
   }
 }
 
-async function getFlashbotBundleCache(uuid) {
-  let flashbotBundleData = await request.get({
-    url: `https://rpc.flashbots.net/bundle?id=${uuid}`,
-    json: true,
-  });
-  if (flashbotBundleData.rawTxs.size == 0) {
-    console.log(`Error, Flashbot Bundle Cache ${uuid} is empty`);
-    //process.exit(1);
+async function getBundleCache(uuid) {
+  let headers = getCFHeaders();
+  try {
+    let bundleData = await request.get({
+      headers: headers,
+      url: `https://tacsrpc.tether.to/rpc?bundle=${uuid}`,
+      json: true,
+    });
+    if (bundleData.rawTxs.size == 0) {
+      console.log(`Error, Bundle Cache ${uuid} is empty`);
+      //process.exit(1);
+    }
+    return bundleData.rawTxs;
+  } catch (err) {
+    console.log("Error Retrieving Bundle Cache; ", err.message)
+    return []
   }
-  return flashbotBundleData.rawTxs;
+}
+
+async function clearBundleCache(uuid) {
+  let rpcurl=`https://tacsrpc.tether.to/rpc?bundle=${uuid}`;
+  let headers = getCFHeaders()
+
+  try {
+    let response = await request.post({
+      headers: headers,
+      url: rpcurl,
+      body: {
+        jsonrpc: '2.0',
+        method: 'eth_clearBundle',
+        id: 1,
+      },
+      json: true,
+    });
+    if (response.error) {
+      console.log('Bundle Clear Error:', response.error.message);
+    } else {
+      console.log(response.result);
+    }
+  } catch (err) {
+    console.log("Bundle Clear Failed: \x1b[32m%s\x1b[0m",err)
+  }
 }
 
 async function broadcastFlashbot(signedtx, bUUID='') {
   let rpcurl='https://rpc.flashbots.net/fast';
+  let headers = { 'content-type': 'application/json' }
 
   if (bUUID.length>0) {
-    rpcurl=`https://rpc.flashbots.net?bundle=${bUUID}`;
+    rpcurl=`https://tacsrpc.tether.to/rpc?bundle=${bUUID}`;
+    headers = Object.assign(headers, getCFHeaders())
     console.log("Queueing transaction in Bundle: \x1b[32m%s\x1b[0m",bUUID);
   } else {
     console.log('Broadcasting to Flashbot...');
   }
+
   try {
     let response = await request.post({
-      headers: { 'content-type': 'application/json' },
+      headers: headers,
       url: rpcurl,
       body: {
         jsonrpc: '2.0',
@@ -485,7 +527,7 @@ async function broadcastFlashbot(signedtx, bUUID='') {
     } else {
       console.log(response.result);
       if (bUUID.length>0) {
-        console.log("TX inserted into Flashbot Bundle Cache");
+        console.log("TX inserted into Bundle Cache");
       } else {
         txHashes.push(response.result);
       }
@@ -564,7 +606,7 @@ async function broadcastFlashbotBundle(signedtxarray, simulate=false) {
       console.log('Flashbot Broadcast Error:', response.error.message);
       console.log(response.error);
     } else {
-      //console.log(response.result.bundleHash);
+      //console.log(response);
       console.log(response.result);
       retval = {
         'hash': response.result.bundleHash,
@@ -708,7 +750,8 @@ module.exports = {
   broadcastFlashbot,
   broadcastFlashbotBundle,
   bundleRebroadcast,
-  getFlashbotBundleCache,
+  getBundleCache,
+  clearBundleCache,
   web3,
   common,
   FeeMarketEIP1559Transaction,

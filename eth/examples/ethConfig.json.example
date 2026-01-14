@@ -1,7 +1,9 @@
 {
-  "web3url":"https://mainnet.infura.io/v3/<your infura key>",
-  "etherscanApiKey":"your-api-key",
+  "web3url": "https://mainnet.infura.io/v3/<your infura key>",
+  "etherscanApiKey": "your-api-key",
   "gasLimit": 250000,
   "contract_address": "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828",
-  "hd_path": "44'/60'/0'/0/0"
+  "hd_path": "44'/60'/0'/0/0",
+  "cfid": "your-cf-api-id",
+  "cfsecret": "your-cf-api-secret"
 }
