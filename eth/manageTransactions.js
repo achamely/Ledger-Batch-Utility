@@ -111,8 +111,10 @@ async function main() {
   let action = myArgs[0] || '';
   action = action.toLowerCase();
 
-  if ( !['confirm','revoke','broadcast','clear'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
+  if ( !['confirm','revoke','broadcast','clear','display'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
     console.log("\x1b[31m Invalid Syntax. Please call with following format: \x1b[0m\n");
+    console.log("\x1b[32m    node manageTransactions.js display --b <bundle UUID>\x1b[0m\n");
+    console.log("                       or\n");
     console.log("\x1b[32m    node manageTransactions.js broadcast --b <bundle UUID>\x1b[0m\n");
     console.log("                       or\n");
     console.log("\x1b[32m    node manageTransactions.js clear --b <bundle UUID>\x1b[0m\n");
@@ -194,6 +196,10 @@ async function main() {
       console.log(`\x1b[33m${addr},\t\t${data.start},\t\t\t${data.next},\t\t\x1b[0m${s_status}`);
     }
     console.log("===============================================================================================================================\n\n");
+
+    if (action == 'display') {
+      return process.exit(0);
+    }
 
     if (action == 'broadcast') {
       const bq = await askQuestion('\nBroadcast Bundle Txs to Blockchain? [y/n] ');
