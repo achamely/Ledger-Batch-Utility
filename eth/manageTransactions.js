@@ -84,24 +84,36 @@ async function main() {
 
   var bundleFlag=false;
   var rawFlag=false;
-  for (let i = 0; i < myArgs.length; i++) {
+  var simFlag=false;
+  console.log(myArgs.length);
+  for (let i = 0; i < myArgs.length; ) {
     const arg = myArgs[i];
+
     if (arg.toString().startsWith('--')) {
       const key = arg.slice(2).toLowerCase();
       myArgs.splice(i,1);
+
       if (key=='b') {
-        bundleFlag=true
+        bundleFlag=true;
         uuid = myArgs[i];
         myArgs.splice(i,1);
+        continue;
       }
       if (['r','raw'].includes(key)) {
-        rawFlag=true
+        rawFlag=true;
+        continue;
+      }
+      if (['s','sim','simulate'].includes(key)) {
+        simFlag=true;
+        continue;
       }
       if (['c','ca'].includes(key)) {
         contractAddress = myArgs[i].toLowerCase();
         myArgs.splice(i,1);
+        continue;
       }
     }
+    i++;
   }
 
   if (bundleFlag && rawFlag) {
@@ -131,7 +143,8 @@ async function main() {
     console.log("\x1b[32m    node manageTransactions.js revoke 2000,2001 \x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js broadcast --b <bundle UUID>\x1b[0m");
     console.log("\n Optional:");
-    console.log("   add \x1b[32m--ca <admin msig contract address>\x1b[0m to bypass ui prompt and force the admin msig to interact with\n\n");
+    console.log("   add \x1b[32m--ca <admin msig contract address>\x1b[0m to bypass ui prompt and force the admin msig to interact with");
+    console.log("   add \x1b[32m--s \x1b[0m when calling broadcast to simulate the broadcast and display simulation results\n\n");
     process.exit(0);
   }
 
@@ -149,9 +162,11 @@ async function main() {
 
   let bbText = bundleFlag? 'Enabled' : 'Disabled';
   let rText = rawFlag? 'Enabled' : 'Disabled';
+  let simText = simFlag? 'Enabled' : 'Disabled';
   console.log('\n-------------------------------------------------');
   console.log(`Selected Admin Msig Address \x1b[33m${contractAddress}\x1b[0m`);
   console.log(`Bundle Operations \x1b[33m${bbText}\x1b[0m`);
+  console.log(`SIMULATE Bundle Operations \x1b[33m${simText}\x1b[0m`);
   console.log(`Raw Output \x1b[33m${rText}\x1b[0m`);
   console.log('-------------------------------------------------\n');
   if (bundleFlag) {
@@ -204,7 +219,7 @@ async function main() {
     if (action == 'broadcast') {
       const bq = await askQuestion('\nBroadcast Bundle Txs to Blockchain? [y/n] ');
       if (bq === 'y') {
-        await bundleRebroadcast(signedtxarray);
+        await bundleRebroadcast(signedtxarray,simFlag);
         await new Promise(resolve => setTimeout(resolve, 2000));
         console.log('Finished');
       } else {

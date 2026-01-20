@@ -601,7 +601,11 @@ async function broadcastFlashbotBundle(signedtxarray, simulate=false) {
   let signature = await generateFlashbotSignature(body);
 
   //console.log(signature);
-  console.log('Broadcasting to Flashbot...');
+  if (simulate) {
+    console.log('Simulating on Flashbot...');
+  } else {
+    console.log('Broadcasting to Flashbot...');
+  }
   try {
     let response = await request.post({
       headers: {
@@ -616,8 +620,12 @@ async function broadcastFlashbotBundle(signedtxarray, simulate=false) {
       console.log('Flashbot Broadcast Error:', response.error.message);
       console.log(response.error);
     } else {
-      console.log(response);
-      console.log(response.result);
+      if (simulate) {
+        console.log('Simulation Results');
+        console.log(response);
+      } else {
+        console.log(response.result);
+      }
       retval = {
         'hash': response.result.bundleHash,
         'target': targetBlock,
@@ -629,10 +637,12 @@ async function broadcastFlashbotBundle(signedtxarray, simulate=false) {
   return retval;
 }
 
-async function bundleRebroadcast(txarray,limit=15) {
-  let bundleDetails = await broadcastFlashbotBundle(txarray);
+async function bundleRebroadcast(txarray,simulate=false,limit=15) {
+  let bundleDetails = await broadcastFlashbotBundle(txarray,simulate);
   await new Promise(resolve => setTimeout(resolve, 1000));
   console.log('Finished')
+  if (simulate) { return }
+
   let hash = bundleDetails['hash']
   let target = bundleDetails['target'];
   console.log('Querying status of bundle',hash, 'in block', target);
@@ -662,7 +672,7 @@ async function bundleRebroadcast(txarray,limit=15) {
   } else {
     if (limit > 0) {
       console.log(`Bundle not included by target block, retrying. ${limit} attempts left.`);
-      await bundleRebroadcast(txarray,limit);
+      await bundleRebroadcast(txarray,simulate,limit);
     } else {
       console.log("Bundle Broadcast failed retry limit reached")
     }
