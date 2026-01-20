@@ -6,6 +6,7 @@ const {
   getTxData,
   decodeBundleTxs,
   updateGas,
+  populateNextNonce,
   broadcastFlashbot,
   bundleRebroadcast,
   getBundleCache,
@@ -116,6 +117,8 @@ async function main() {
     console.log("                       or\n");
     console.log("\x1b[32m    node manageTransactions.js clear --b <bundle UUID>\x1b[0m\n");
     console.log("                       or\n");
+    console.log("\x1b[32m    node manageTransactions.js clear 3,4,5 --b <bundle UUID>\x1b[0m\n");
+    console.log("                       or\n");
     console.log("\x1b[32m    node manageTransactions.js <action> <filepath || tx || csv_list_of_txs>\x1b[0m");
     console.log("       Valid options for action are: \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
     console.log("       Add \x1b[32m--b <bundle UUID>\x1b[0m to work on a bundle cache without broadcasting\n");
@@ -159,16 +162,38 @@ async function main() {
 
     let signedtxarray = bundleTxs.reverse();
     let decodedPending = await decodeBundleTxs(signedtxarray);
+    let bsigners={}
 
     console.log("\x1b[33mFound the following pending transactions in the Bundle Cache\n\x1b[0m");
     console.log("==================================\x1b[33m*PENDING\x1b[0m=====================================================================================");
-    console.log("TX*, Destination, Method, Address, Value, Sender")
+    console.log("Index, TX*, Destination, Method, Address, Value, Sender, Nonce")
+    let ptl = decodedPending.length;
     decodedPending.forEach(pTx => {
-      console.log(`\x1b[33m${pTx} \x1b[0m`)
+      console.log(`\x1b[33m${ptl},${pTx} \x1b[0m`);
+      ptl--;
+      let dt = pTx.split(',');
+      let l = dt.length;
+      let saddr = dt[l-2];
+      let san = dt[l-1];
+      if (bsigners[saddr] === undefined || bsigners[saddr].start > san) {
+        bsigners[saddr] = {'start':san}
+      }
     })
     console.log("===============================================================================================================================\n\n");
     console.log("\x1b[36mNote: the displayed Pending MultiSig TX Number* is calculated. If another multisig tx is submitted before this bundle, this will change.");
     console.log("To avoid confirmation issues in bundle, Please ensure this bundle is broadcasted before submitting new msig txs to the blockchain.\n\n\n\x1b[0m")
+
+    bsigners = await populateNextNonce(bsigners);
+    console.log("==================================\x1b[33mSigners Array\x1b[0m================================================================================");
+    console.log("\tSigning Address \t\t\tFirst Offline Tx Nonce \tNext Blockchain Nonce \t\tStatus");
+    for (const [addr, data] of Object.entries(bsigners)) {
+      let s_status='\x1b[32m\tPassed\x1b[0m';
+      if (data.start !== data.next) {
+        s_status='\x1b[31mError: Nonce MisMatch\x1b[0m'
+      }
+      console.log(`\x1b[33m${addr},\t\t${data.start},\t\t\t${data.next},\t\t\x1b[0m${s_status}`);
+    }
+    console.log("===============================================================================================================================\n\n");
 
     if (action == 'broadcast') {
       const bq = await askQuestion('\nBroadcast Bundle Txs to Blockchain? [y/n] ');
@@ -183,9 +208,18 @@ async function main() {
     }
 
     if (action == 'clear') {
-      const bq = await askQuestion('\nDelete Bundle Txs from Queue? [y/n] ');
+      let txlist_d = 'All Bundle Txs'
+
+      if (myArgs[1] !== undefined) {
+        txs = myArgs[1].split(',').filter(Boolean);
+        if (txs.length > 0) {
+          txlist_d = `Bundle Txs ${txs}`;
+        }
+      }
+
+      const bq = await askQuestion(`\nDelete ${txlist_d} from Queue? [y/n] `);
       if (bq === 'y') {
-        await clearBundleCache(uuid);
+        await clearBundleCache(uuid, txs);
         await new Promise(resolve => setTimeout(resolve, 2000));
         console.log('Finished');
       } else {

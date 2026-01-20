@@ -201,6 +201,14 @@ function getTxData(nonce, data, gasLimit, gasPrice, maxFeePerGas, contractAddres
   };
 }
 
+async function populateNextNonce(addrMap) {
+  for (const [addr, data] of Object.entries(addrMap)) {
+    const txCount = await web3.eth.getTransactionCount(addr);
+    data.next = txCount;
+  }
+
+  return addrMap;
+}
 
 async function decodeBundleTxs(txList) {
   let retval=[]
@@ -216,6 +224,7 @@ async function decodeBundleTxs(txList) {
     let dest = dtx.to;
     let data = dtx.data;
     let from = dtx.from;
+    let nonce = dtx.nonce
     let contractABI = contractAbiList(dest);
     let dd = abiDecode(contractABI,data);
     if (dd['function']=='submitTransaction') {
@@ -223,14 +232,14 @@ async function decodeBundleTxs(txList) {
       let exDest = dd['data'][0];
       let exData = dd['data'][2];
       let exDD = decodeData(exData);
-      retval.push(`${nextTx}*,${exDest},${exDD['method']},${exDD['addr']},${exDD['value']},${from}`);
+      retval.push(`${nextTx}*,${exDest},${exDD['method']},${exDD['addr']},${exDD['value']},${from},${nonce}`);
       try {
         nextTx = nextTx + 1;
       } catch (err)  {
         //couldn't figure out next txid
       }
     } else {
-      retval.push(`${parseInt(dd['data'][0])}*,${dest},${dd['function']},-,-,${from}`);
+      retval.push(`${parseInt(dd['data'][0])}*,${dest},${dd['function']},-,-,${from},${nonce}`);
     }
   }
   return retval;
@@ -473,7 +482,7 @@ async function getBundleCache(uuid) {
   }
 }
 
-async function clearBundleCache(uuid) {
+async function clearBundleCache(uuid,txs) {
   let rpcurl=`https://tacsrpc.tether.to/rpc?bundle=${uuid}`;
   let headers = getCFHeaders()
 
@@ -484,6 +493,7 @@ async function clearBundleCache(uuid) {
       body: {
         jsonrpc: '2.0',
         method: 'eth_clearBundle',
+        params: txs,
         id: 1,
       },
       json: true,
@@ -606,7 +616,7 @@ async function broadcastFlashbotBundle(signedtxarray, simulate=false) {
       console.log('Flashbot Broadcast Error:', response.error.message);
       console.log(response.error);
     } else {
-      //console.log(response);
+      console.log(response);
       console.log(response.result);
       retval = {
         'hash': response.result.bundleHash,
@@ -745,6 +755,7 @@ module.exports = {
   decodeBundleTxs,
   decodeData,
   updateGas,
+  populateNextNonce,
   broadcast,
   broadcastEtherscan,
   broadcastFlashbot,
