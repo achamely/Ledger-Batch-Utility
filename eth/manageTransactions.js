@@ -205,7 +205,7 @@ async function main() {
     console.log("\tSigning Address \t\t\tFirst Offline Tx Nonce \tNext Blockchain Nonce \t\tStatus");
     for (const [addr, data] of Object.entries(bsigners)) {
       let s_status='\x1b[32m\tPassed\x1b[0m';
-      if (data.start !== data.next) {
+      if (parseInt(data.start) !== parseInt(data.next)) {
         s_status='\x1b[31mError: Nonce MisMatch\x1b[0m'
       }
       console.log(`\x1b[33m${addr},\t\t${data.start},\t\t\t${data.next},\t\t\x1b[0m${s_status}`);
