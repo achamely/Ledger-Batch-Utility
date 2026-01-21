@@ -74,6 +74,7 @@ const sign = async (ledger, tx, nonce, action, bundleFlag, rawFlag) => {
     console.log('\x1b[35m Send signed hex to Bundling admin !!!\x1b[0m');
   } else if (bundleFlag) {
     await broadcastFlashbot(signedHex,uuid);
+    console.log('\x1b[35m Please ensure no further txs are prepared/signed/broadcast until this bundle has been broadcast !!!\x1b[0m');
   } else {
     await broadcastFlashbot(signedHex);
   }
