@@ -7,6 +7,7 @@ const {
   decodeBundleTxs,
   updateGas,
   populateNextNonce,
+  broadcast,
   broadcastFlashbot,
   bundleRebroadcast,
   getBundleCache,
@@ -32,6 +33,8 @@ const gasLimit = config.gasLimit;
 let gasPrice, maxFeePerGas;
 let txs;
 let uuid;
+
+let provider = 'flashbot';
 
 const sign = async (ledger, tx, nonce, action, bundleFlag, rawFlag) => {
   let inst;
@@ -76,7 +79,7 @@ const sign = async (ledger, tx, nonce, action, bundleFlag, rawFlag) => {
     await broadcastFlashbot(signedHex,uuid);
     console.log('\x1b[35m Please ensure no further txs are prepared/signed/broadcast until this bundle has been broadcast !!!\x1b[0m');
   } else {
-    await broadcastFlashbot(signedHex);
+    await broadcast(signedHex,provider);
   }
 };
 
@@ -86,7 +89,6 @@ async function main() {
   var bundleFlag=false;
   var rawFlag=false;
   var simFlag=false;
-  console.log(myArgs.length);
   for (let i = 0; i < myArgs.length; ) {
     const arg = myArgs[i];
 
@@ -113,8 +115,23 @@ async function main() {
         myArgs.splice(i,1);
         continue;
       }
+      if (['p','provider'].includes(key)) {
+        provider = myArgs[i].toLowerCase();
+        myArgs.splice(i,1);
+        continue;
+      }
     }
     i++;
+  }
+
+  if ( !['web3','etherscan','flashbot'].includes(provider) ) {
+    console.log("\x1b[31m Invalid provider. Available options: 'web3','etherscan','flashbot' \x1b[0m\n");
+    process.exit(0);
+  }
+
+  if (bundleFlag) {
+    console.log("Note: Bundle Flag forces provider to flashbot");
+    provider='flashbot';
   }
 
   if (bundleFlag && rawFlag) {
@@ -146,6 +163,7 @@ async function main() {
     console.log("\n Optional:");
     console.log("   add \x1b[32m--ca <admin msig contract address>\x1b[0m to bypass ui prompt and force the admin msig to interact with");
     console.log("   add \x1b[32m--s \x1b[0m when calling broadcast to simulate the broadcast and display simulation results\n\n");
+    console.log("   add \x1b[32m--p <broadcast provider>\x1b[0m select broadcast provider, Available options: 'web3','etherscan','flashbot' Default: flashbot");
     process.exit(0);
   }
 
@@ -169,6 +187,7 @@ async function main() {
   console.log(`Bundle Operations \x1b[33m${bbText}\x1b[0m`);
   console.log(`SIMULATE Bundle Operations \x1b[33m${simText}\x1b[0m`);
   console.log(`Raw Output \x1b[33m${rText}\x1b[0m`);
+  console.log(`Broadcast Provider \x1b[33m${provider}\x1b[0m`);
   console.log('-------------------------------------------------\n');
   if (bundleFlag) {
     let bundleTxs = await getBundleCache(uuid);

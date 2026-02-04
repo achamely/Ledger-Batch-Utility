@@ -14,28 +14,34 @@ async function main() {
   let detailFlag,printSummary,printGroup;
   let txArgs=[]
 
-  for (let i = 0; i < myArgs.length; i++) {
+  for (let i = 0; i < myArgs.length;) {
     const arg = myArgs[i];
+
     if (arg.toString().startsWith('--')) {
       const key = arg.slice(2).toLowerCase();
       myArgs.splice(i,1);
-      val = myArgs[i];
-      myArgs.splice(i,1);
+
       if (key[0].toLowerCase()=='d') {
-        detailFlag=[1,''].includes(val);
+        detailFlag=true;
+        continue;
       }
       if (key[0].toLowerCase()=='s') {
-        printSummary=[1,''].includes(val);
+        printSummary=true;
+        continue;
       }
       if (key[0].toLowerCase()=='g') {
-        printGroup=[1,''].includes(val);
+        printGroup=false;
+        continue;
       }
       if (['c','ca'].includes(key)) {
-        contractAddress = val.toLowerCase();
+        contractAddress = myArgs[i].toLowerCase();
+        myArgs.splice(i,1);
+        continue;
       }
     } else {
       txArgs.push(arg);
     }
+    i++;
   }
 
   if (contractAddress == undefined) {
@@ -49,7 +55,6 @@ async function main() {
       contractAddress=getContractAddress('ADMIN');
     }
   }
-
 
   await processList(txArgs,contractAddress,detailFlag,printSummary,printGroup)
   process.exit(0);

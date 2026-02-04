@@ -31,6 +31,13 @@ const askQuestion = (question) => {
   });
 };
 
+const MIN_INTERVAL_MS = 200;     // aggressive lower bound
+const MAX_INTERVAL_MS = 3000;    // hard cap on backoff
+const MAX_RETRIES = 3;
+
+let currentIntervalMs = 500;     // start safe
+let lastBroadcastAt = 0;
+
 let CONTRACTS = {};
 
 const adminMSIG  = getContract('ADMIN');
@@ -41,6 +48,20 @@ const tetherMXNT = getContract('MXNT');
 const tetherXAUT = getContract('XAUT');
 const tetherUSAT = getContract('USAT');
 const adminMSIG_USAT  = getContract('ADMIN_USAT');
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(err, response) {
+  return (
+    err?.statusCode === 429 ||
+    err?.status === 429 ||
+    err?.message?.includes('rate limit') ||
+    response?.error?.code === -32016 ||
+    response?.error?.message?.includes('rate limit')
+  );
+}
 
 function contractAbiList(address) {
   let abi;
@@ -438,7 +459,26 @@ async function updateGas(baseGas = 2) {
   }
 }
 
-async function broadcast(signedtx) {
+async function broadcast(signedtx, provider='web3', options={}) {
+
+  switch (provider.toLowerCase()) {
+    case 'web3':
+      await broadcastWeb3(signedtx)
+      break
+    case 'etherscan':
+      await broadcastEtherscan(signedtx)
+      break
+    case 'flashbot':
+      await broadcastFlashbot(signedtx, options['bUUID'])
+      break
+    default:
+      console.log(`Unknown broadcast provider ${provider}, defaulting to web3`);
+      await broadcastWeb3(signedtx)
+  }
+
+}
+
+async function broadcastWeb3(signedtx) {
   console.log('Broadcasting...');
   try {
     await web3.eth.sendSignedTransaction(signedtx, (err, hash) => {
@@ -508,20 +548,39 @@ async function clearBundleCache(uuid,txs) {
   }
 }
 
-async function broadcastFlashbot(signedtx, bUUID='') {
+async function broadcastFlashbot(signedtx, bUUID = '', attempt = 1) {
   let rpcurl='https://rpc.flashbots.net/fast';
   let headers = { 'content-type': 'application/json' }
 
   if (bUUID.length>0) {
     rpcurl=`https://tacsrpc.tether.to/rpc?bundle=${bUUID}`;
     headers = Object.assign(headers, getCFHeaders())
-    console.log("Queueing transaction in Bundle: \x1b[32m%s\x1b[0m",bUUID);
+    console.log(
+      "Queueing transaction in Bundle: \x1b[32m%s\x1b[0m",
+      bUUID
+    );
   } else {
     console.log('Broadcasting to Flashbot...');
   }
 
+  // ---- Rate-limit spacing ----
+  const now = Date.now();
+  const elapsed = now - lastBroadcastAt;
+
+  if (elapsed < currentIntervalMs) {
+    const wait = currentIntervalMs - elapsed;
+    console.log(
+      "Rate Limit protection, sleeping for: ",
+      wait
+    );
+    await sleep(wait);
+  }
+
+  // Set timestamp BEFORE send to avoid spacing collapse on errors
+  lastBroadcastAt = Date.now();
+
   try {
-    let response = await request.post({
+    const response = await request.post({
       headers: headers,
       url: rpcurl,
       body: {
@@ -532,19 +591,67 @@ async function broadcastFlashbot(signedtx, bUUID='') {
       },
       json: true,
     });
+
     if (response.error) {
       console.log('Flashbot Broadcast Error:', response.error.message);
+
+      if (isRateLimitError(null, response)) {
+        if (attempt <= MAX_RETRIES) {
+          currentIntervalMs = Math.min(
+            MAX_INTERVAL_MS,
+            Math.ceil(currentIntervalMs * 1.5)
+          );
+
+          console.warn(
+            `⚠️ Rate limited (RPC). Backing off to ${currentIntervalMs}ms and retrying (${attempt}/${MAX_RETRIES})`
+          );
+
+          await sleep(currentIntervalMs);
+          return broadcastFlashbot(signedtx, bUUID, attempt + 1);
+        }
+      }
     } else {
       console.log(response.result);
+
       if (bUUID.length>0) {
         console.log("TX inserted into Bundle Cache");
       } else {
         txHashes.push(response.result);
       }
+
+      // Success → slowly relax interval
+      currentIntervalMs = Math.max(
+        MIN_INTERVAL_MS,
+        Math.floor(currentIntervalMs * 0.9)
+      );
+
+      return response.result;
     }
   } catch (err) {
-    console.log("Flashbot Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+    console.log(
+      "Flashbot Broadcast Failed: \x1b[32m%s\x1b[0m",
+      err?.message || err
+    );
+
+    if (isRateLimitError(err)) {
+      if (attempt <= MAX_RETRIES) {
+        currentIntervalMs = Math.min(
+          MAX_INTERVAL_MS,
+          Math.ceil(currentIntervalMs * 1.5)
+        );
+
+        console.warn(
+          `⚠️ Rate limited (HTTP). Backing off to ${currentIntervalMs}ms and retrying (${attempt}/${MAX_RETRIES})`
+        );
+
+        await sleep(currentIntervalMs);
+        return broadcastFlashbot(signedtx, bUUID, attempt + 1);
+      }
+    }
+    throw err;
   }
+  // If we reach here, retries were exhausted
+  throw new Error('Flashbot broadcast failed after retries');
 }
 
 async function generateFlashbotSignature(msg) {
