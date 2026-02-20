@@ -6,6 +6,7 @@ const {
   isValidUuidV4,
   getTxData,
   updateGas,
+  broadcast,
   broadcastFlashbot,
   bundleRebroadcast,
   web3,
@@ -33,6 +34,8 @@ let gasPrice, maxFeePerGas;
 
 let bundle_uuid = randomUUID();
 let adminStats = {};
+
+let provider = 'flashbot';
 
 const sign = async (ledger, tx, nonce, bundleFlag) => {
   const args = tx.split(' ');
@@ -228,15 +231,15 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
 
   if (sig1 && sig2) {
     console.log(`Broadcasting Signed TX BUNDLE...`);
-    let signedtxarray = [bytesToHex(signedTx.serialize()), sig1, sig2]
+    let signedtxarray = [signedHex, sig1, sig2]
     console.log(signedtxarray);
     await bundleRebroadcast(signedtxarray);
   } else {
     console.log(`Broadcasting Signed TX...`);
     if (bundleFlag) {
-      await broadcastFlashbot(bytesToHex(signedTx.serialize()),bundle_uuid);
+      await broadcastFlashbot(signedHex,bundle_uuid);
     } else {
-      await broadcastFlashbot(bytesToHex(signedTx.serialize()));
+      await broadcast(signedHex,provider);
     }
   }
 };
@@ -244,23 +247,40 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
 async function main() {
 
   let bundleFlag=false;
-  for (let i = 0; i < myArgs.length; i++) {
+  for (let i = 0; i < myArgs.length; ) {
     const arg = myArgs[i];
+
     if (arg.toString().startsWith('--')) {
-      const key = arg.slice(2);
-      myArgs.splice(i,1)
-      if (key.toLowerCase()=='b') {
+      const key = arg.slice(2).toLowerCase();
+      myArgs.splice(i,1);
+
+      if (key=='b') {
         bundleFlag=true;
         let uuid = myArgs[i];
         if (isValidUuidV4(uuid)) {
           bundle_uuid = uuid;
           myArgs.splice(i,1);
         }
+        continue;
+      }
+      if (['p','provider'].includes(key)) {
+        provider = myArgs[i].toLowerCase();
+        myArgs.splice(i,1);
+        continue;
       }
     }
+    i++;
+  }
+
+  if ( !['web3','etherscan','flashbot'].includes(provider) ) {
+    console.log("\x1b[31m Invalid provider. Available options: 'web3','etherscan','flashbot' \x1b[0m\n");
+    process.exit(0);
   }
 
   if (bundleFlag) {
+    console.log("Note: Bundle Flag forces provider to flashbot\n");
+    provider='flashbot';
+
     console.log("\n\n----------------------------------------------");
     console.log("Bundle Cache Generation: \x1b[32m Enabled\x1b[0m");
     console.log(`Using Bundle Cache ID: \x1b[33m ${bundle_uuid} \x1b[0m`);
@@ -274,6 +294,12 @@ async function main() {
   } else {
     txs = [myArgs.join(' ')];
   }
+
+  let bbText = bundleFlag? 'Enabled' : 'Disabled';
+  console.log('\n-------------------------------------------------');
+  console.log(`Bundle Operations \x1b[33m${bbText}\x1b[0m`);
+  console.log(`Broadcast Provider \x1b[33m${provider}\x1b[0m`);
+  console.log('-------------------------------------------------\n');
 
   console.log('Config:')
   console.log(config)

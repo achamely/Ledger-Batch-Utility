@@ -34,7 +34,7 @@ let gasPrice, maxFeePerGas;
 let txs;
 let uuid;
 
-let provider = 'flashbot';
+let provider = 'etherscan';
 
 const sign = async (ledger, tx, nonce, action, bundleFlag, rawFlag) => {
   let inst;
