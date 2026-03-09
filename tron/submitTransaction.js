@@ -8,16 +8,21 @@ const {
   tronWeb,
   initContracts,
   getMsigContract,
+  queueBundleTx,
+  isValidUuidV4,
   rl,
   fs,
 } = require('./common');
 
 const { processList } = require('./helperQueryManagement');
+const { randomUUID } = require('crypto');
 
 const config = require('./tronConfig.json')
 const myArgs = process.argv.slice(2)
 
-const sign = async function (ledger, tx) {
+let bundle_uuid = randomUUID();
+
+const sign = async function (ledger, tx, bundleFlag) {
   const args = tx.split(' ')
   let token, instruction, encodedAddr
 
@@ -131,10 +136,43 @@ const sign = async function (ledger, tx) {
     return
   }
 
-  await broadcast(txo.transaction)
+  if (bundleFlag) {
+    await queueBundleTx(txo.transaction,bundle_uuid)
+  } else {
+    await broadcast(txo.transaction)
+  }
 }
 
 async function main() {
+
+  let bundleFlag=false;
+  for (let i = 0; i < myArgs.length; ) {
+    const arg = myArgs[i];
+
+    if (arg.toString().startsWith('--')) {
+      const key = arg.slice(2).toLowerCase();
+      myArgs.splice(i,1);
+
+      if (key=='b') {
+        bundleFlag=true;
+        let uuid = myArgs[i];
+        if (isValidUuidV4(uuid)) {
+          bundle_uuid = uuid;
+          myArgs.splice(i,1);
+        }
+        continue;
+      }
+    }
+    i++;
+  }
+
+  if (bundleFlag) {
+    console.log("\n\n----------------------------------------------");
+    console.log("Bundle Cache Generation: \x1b[32m Enabled\x1b[0m");
+    console.log(`Using Bundle Cache ID: \x1b[33m ${bundle_uuid} \x1b[0m`);
+    console.log("----------------------------------------------\n\n");
+  }
+
   let txs;
   let filePath = myArgs[0];
   if (fs.existsSync(filePath)) {
@@ -173,7 +211,7 @@ async function main() {
       try {
         for (const tx of txs) {
           if (!tx.startsWith('#')) {
-            await sign(ledger, tx)
+            await sign(ledger, tx, bundleFlag)
           }
         }
       } catch (err) {
@@ -183,10 +221,12 @@ async function main() {
       //give time for final broadcast to finish
       console.log('Closing Ledger...')
       await new Promise(resolve => setTimeout(resolve, 3000));
+      if (!bundleFlag) {
+        await processList([txCountS],false,true,false);
+        let txCountF = parseInt(await msigContract.transactionCount().call()) - 1;
+        console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
+      }
       console.log('Finished')
-      await processList([txCountS],false,true,false);
-      let txCountF = parseInt(await msigContract.transactionCount().call()) - 1;
-      console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
       process.exit()
     } catch (err) {
       console.log(err)

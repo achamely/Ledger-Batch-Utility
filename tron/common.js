@@ -49,6 +49,11 @@ function padLeftZeros(stringItem) {
   return stringItem.padStart(64, '0');
 }
 
+function isValidUuidV4(uuid) {
+  const uuidV4Regex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+  return uuidV4Regex.test(uuid);
+}
+
 async function getTxData (type,data,dest) {
  let parameter,action;
 
@@ -178,6 +183,100 @@ async function broadcast (signedtx) {
     }
 }
 
+
+function getCFHeaders() {
+  return {
+    'CF-Access-Client-Id' : config.cfid,
+    'CF-Access-Client-Secret' : config.cfsecret
+  }
+}
+
+async function getBundleCache(uuid) {
+  let headers = getCFHeaders();
+  try {
+    let bundleData = await request.get({
+      headers: headers,
+      url: `https://tacsrpc.tether.to/rpc?bundle=${uuid}`,
+      json: true,
+    });
+    if (bundleData.rawTxs.size == 0) {
+      console.log(`Error, Bundle Cache ${uuid} is empty`);
+      //process.exit(1);
+    }
+    return bundleData.rawTxs;
+  } catch (err) {
+    console.log("Error Retrieving Bundle Cache; ", err.message)
+    return []
+  }
+}
+
+async function clearBundleCache(uuid,txs) {
+  let rpcurl=`https://tacsrpc.tether.to/rpc?bundle=${uuid}`;
+  let headers = getCFHeaders()
+
+  try {
+    let response = await request.post({
+      headers: headers,
+      url: rpcurl,
+      body: {
+        jsonrpc: '2.0',
+        method: 'clearBundle',
+        params: txs,
+        id: 1,
+      },
+      json: true,
+    });
+    if (response.error) {
+      console.log('Bundle Clear Error:', response.error.message);
+    } else {
+      console.log(response.result);
+    }
+  } catch (err) {
+    console.log("Bundle Clear Failed: \x1b[32m%s\x1b[0m",err)
+  }
+}
+
+async function queueBundleTx(signedtx, bUUID) {
+  let headers = { 'content-type': 'application/json' }
+  let rpcurl=`https://tacsrpc.tether.to/rpc?bundle=${bUUID}`;
+  headers = Object.assign(headers, getCFHeaders())
+  console.log(
+    "Queueing transaction in Bundle: \x1b[32m%s\x1b[0m",
+    bUUID
+  );
+
+  try {
+    const response = await request.post({
+      headers: headers,
+      url: rpcurl,
+      body: {
+        jsonrpc: '2.0',
+        method: 'storeRawTransaction',
+        params: [signedtx],
+        id: 1,
+      },
+      json: true,
+    });
+
+    if (response.error) {
+      console.log('Bundle Queue Error:', response.error.message);
+    } else {
+      console.log(response.result);
+      console.log("TX inserted into Bundle Cache");
+      return response.result;
+    }
+  } catch (err) {
+    console.log(
+      "Bundle Queue Error: \x1b[32m%s\x1b[0m",
+      err?.message || err
+    );
+    throw err;
+  }
+}
+
+
+
+
 module.exports = {
   createLedger,
   padLeftZeros,
@@ -187,6 +286,9 @@ module.exports = {
   tronWeb,
   initContracts,
   getMsigContract,
+  clearBundleCache,
+  queueBundleTx,
+  isValidUuidV4,
   rl,
   fs,
 };
