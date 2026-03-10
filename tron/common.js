@@ -3,11 +3,21 @@
 const Transport = require('@ledgerhq/hw-transport-node-hid').default;
 const AppTrx = require('@ledgerhq/hw-app-trx').default;
 const request = require('request-promise');
-const TronWeb = require('tronweb');
+const { TronWeb } = require('tronweb');
 
 const { createInterface } = require('readline');
-const rl = createInterface(process.stdin, process.stdout);
 const fs = require('fs');
+
+
+const rl = createInterface(process.stdin, process.stdout);
+const askQuestion = (question) => {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      resolve(answer);
+    });
+  });
+};
+
 
 const config = require('./tronConfig.json');
 const tronWebOptions = {
@@ -54,7 +64,7 @@ function isValidUuidV4(uuid) {
   return uuidV4Regex.test(uuid);
 }
 
-async function getTxData (type,data,dest) {
+async function getTxData (type,data,dest,bundleFlag) {
  let parameter,action;
 
   switch (type) {
@@ -82,13 +92,90 @@ async function getTxData (type,data,dest) {
   sc = tronWeb.address.toHex(msigContractAddress).toLowerCase();
   signer = tronWeb.address.toHex(config.signerAddress).toLowerCase();
   const txo = await tronWeb.transactionBuilder.triggerSmartContract(sc, action, options,  parameter, signer);
+  if (bundleFlag) {
+    //extend tx validity by 23.5 hours for txs bundled/stored in cache
+    //max network allows is 24hrs from current block timestamp
+    //use a little less to avoid TRANSACTION_EXPIRATION_ERROR
+    txo.transaction = await tronWeb.transactionBuilder.extendExpiration(txo.transaction,84600);
+  }
   return txo
+}
+
+async function decodeBundleTxs(txList){
+  let retval=[]
+  let nextTx = '-';
+  try {
+    nextTx = parseInt(await msigContract.transactionCount().call());
+  } catch (err) {
+    console.log(`Tried to get transaction count for contract ${msigContractAddress}, but got err: ${err}`);
+  }
+
+  for (const dtx of txList){
+    let chainInfo = await tronWeb.trx.getTransactionInfo(dtx.txID)
+    let chainStatus = 'Offline'
+    if (chainInfo.receipt !== undefined) {
+      chainStatus = chainInfo.receipt.result;
+    }
+    let dest = tronWeb.address.fromHex(dtx.raw_data.contract[0].parameter.value.contract_address);
+    let data = dtx.raw_data.contract[0].parameter.value.data;
+    let from = tronWeb.address.fromHex(dtx.raw_data.contract[0].parameter.value.owner_address);
+    let dd = decodeData('0x'+data);
+    if (dd['method']=='submitTransaction') {
+      let destContract = tronWeb.address.fromHex('41'+dd['addr']);
+      let exData = '0x'+dd['value'];
+      let exDD = decodeData(exData);
+      retval.push({
+        'msigTx': `${nextTx}*`,
+        'destination': destContract,
+        'method': exDD['method'],
+        'targetAddr' : tronWeb.address.fromHex(exDD['addr']),
+        'value': exDD['value'],
+        'from' : from,
+        'expire': dtx.raw_data.expiration,
+        'txid': dtx.txID,
+        'chainStatus': chainStatus,
+      })
+      try {
+        nextTx = nextTx + 1;
+      } catch (err)  {
+        //couldn't figure out next txid
+      }
+    } else {
+      retval.push({
+        'msigTx': parseInt(dd['value']),
+        'destination': dest,
+        'method': dd['method'],
+        'targetAddr' : '-',
+        'value': 0,
+        'from' : from,
+        'expire': dtx.raw_data.expiration,
+        'txid': dtx.txID,
+        'chainStatus': chainStatus,
+      })
+    }
+  }
+  return retval;
 }
 
 function decodeData(hex) {
   let method,addr,value;
 
   switch (hex.slice(0,10)) {
+    case '0x20ea8d86':
+      method = 'revokeConfirmation';
+      addr = '';
+      value = tronWeb.toDecimal('0x'+hex.slice(10));
+      break;
+    case '0xc01a8c84':
+      method = 'confirmTransaction';
+      addr = '';
+      value = tronWeb.toDecimal('0x'+hex.slice(10));
+      break;
+    case '0xc6427474':
+      method = 'submitTransaction';
+      addr = hex.slice(34,74);
+      value = hex.slice(266);
+      break;
     case '0x0ecb93c0':
       method = 'addBlackList';
       addr = hex.slice(32,74);
@@ -169,18 +256,54 @@ function decodeData(hex) {
 
 async function broadcast (signedtx) {
     //broadcast final tx
-    console.log("Broadcasting...")
+    console.log("Broadcasting...");
+    //console.log(signedtx.txID);
     try {
-      await tronWeb.trx.sendRawTransaction(signedtx, async function(err, result) {
-        if (!err) {
-          console.log(result.transaction.txID);
-        } else {
-          console.log(err);
-        }
-      });
+      const receipt = await tronWeb.trx.sendRawTransaction(signedtx);
+      //console.log(receipt);
+      if (receipt.result) {
+        console.log(receipt.transaction.txID);
+        return true;
+      } else {
+        console.log('Error', receipt.code, receipt.txid);
+        return false;
+      }
     } catch (err) {
       console.log("Broadcast Failed: \x1b[32m%s\x1b[0m",err)
+      return false;
     }
+}
+
+async function bundleBroadcast (signedtxarray, broadcasted) {
+  for (const stx of signedtxarray) {
+    let broadcastRetry=5;
+
+    if (broadcasted.includes(stx.txID)) {
+      console.log(`${stx.txID} Skipped, Already Broadcast`);
+      continue;
+    }
+
+    while (broadcastRetry > 0) {
+      let res = await broadcast(stx);
+      if (res) {
+        break;
+      }
+      //incremental backoff between retries to max of 5 seconds
+      let base = 1500
+      let backoff = (base * 5/broadcastRetry)
+      if (backoff > 5000) {
+        backoff = 5000
+      }
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      broadcastRetry--;
+    }
+
+    if (broadcastRetry < 1) {
+      console.log("Error broadcasting Cached TXs")
+      console.log("Please check Cached TXs validity before trying again");
+      process.exit(0);
+    }
+  }
 }
 
 
@@ -203,7 +326,13 @@ async function getBundleCache(uuid) {
       console.log(`Error, Bundle Cache ${uuid} is empty`);
       //process.exit(1);
     }
-    return bundleData.rawTxs;
+    //console.log(bundleData);
+    let bundleTxs=[]
+    for (const hexString of bundleData.rawTxs){
+      let btx = Buffer.from(hexString, 'hex').toString('utf8');
+      bundleTxs.push(JSON.parse(btx))
+    }
+    return bundleTxs
   } catch (err) {
     console.log("Error Retrieving Bundle Cache; ", err.message)
     return []
@@ -237,6 +366,9 @@ async function clearBundleCache(uuid,txs) {
 }
 
 async function queueBundleTx(signedtx, bUUID) {
+
+  let signedtxhex = Buffer.from( JSON.stringify(signedtx), 'utf8').toString('hex');
+
   let headers = { 'content-type': 'application/json' }
   let rpcurl=`https://tacsrpc.tether.to/rpc?bundle=${bUUID}`;
   headers = Object.assign(headers, getCFHeaders())
@@ -252,7 +384,7 @@ async function queueBundleTx(signedtx, bUUID) {
       body: {
         jsonrpc: '2.0',
         method: 'storeRawTransaction',
-        params: [signedtx],
+        params: [signedtxhex],
         id: 1,
       },
       json: true,
@@ -286,9 +418,13 @@ module.exports = {
   tronWeb,
   initContracts,
   getMsigContract,
+  getBundleCache,
   clearBundleCache,
   queueBundleTx,
+  bundleBroadcast,
+  decodeBundleTxs,
   isValidUuidV4,
+  askQuestion,
   rl,
   fs,
 };

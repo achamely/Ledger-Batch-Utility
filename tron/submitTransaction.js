@@ -10,7 +10,7 @@ const {
   getMsigContract,
   queueBundleTx,
   isValidUuidV4,
-  rl,
+  askQuestion,
   fs,
 } = require('./common');
 
@@ -105,7 +105,7 @@ const sign = async function (ledger, tx, bundleFlag) {
       return
   }
   const data = `0x${instruction}`
-  var txo = await getTxData('submit', data, token)
+  var txo = await getTxData('submit', data, token, bundleFlag)
   var rawtx = txo.transaction.raw_data_hex
   var txHash = txo.transaction.txID
 
@@ -186,53 +186,55 @@ async function main() {
   console.log('txs:')
   console.log(txs)
 
-  rl.question('\nIs the configuration correct? [y/n]: ', async function (answer) {
-    if (answer !== 'y') {
-      console.log('Exiting')
-      return process.exit(1)
-    }
 
-    console.log('Initializing....')
-    await initContracts();
-    let msigContract;
+
+  const answer = await askQuestion('\nIs the configuration correct? [y/n]: ');
+
+  if (answer !== 'y') {
+    console.log('Exiting')
+    return process.exit(1)
+  }
+
+  console.log('Initializing....')
+  await initContracts();
+  let msigContract;
+  try {
+    msigContract = getMsigContract(); // Fetch initialized contract
+  } catch (err) {
+    console.error("Error: ", err.message);
+    return;
+  }
+
+  try {
+    let txCountS = parseInt(await msigContract.transactionCount().call());
+    const ledger = await createLedger()
+    let signer = await ledger.getAddress(config.hd_path)
+    console.log("Signing Address:", signer.address)
+
     try {
-      msigContract = getMsigContract(); // Fetch initialized contract
-    } catch (err) {
-      console.error("Error: ", err.message);
-      return;
-    }
-
-    try {
-      let txCountS = parseInt(await msigContract.transactionCount().call());
-      const ledger = await createLedger()
-      let signer = await ledger.getAddress(config.hd_path)
-      console.log("Signing Address:", signer.address)
-
-      try {
-        for (const tx of txs) {
-          if (!tx.startsWith('#')) {
-            await sign(ledger, tx, bundleFlag)
-          }
+      for (const tx of txs) {
+        if (!tx.startsWith('#')) {
+          await sign(ledger, tx, bundleFlag)
         }
-      } catch (err) {
-        console.log(err)
       }
-
-      //give time for final broadcast to finish
-      console.log('Closing Ledger...')
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      if (!bundleFlag) {
-        await processList([txCountS],false,true,false);
-        let txCountF = parseInt(await msigContract.transactionCount().call()) - 1;
-        console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
-      }
-      console.log('Finished')
-      process.exit()
     } catch (err) {
       console.log(err)
-      process.exit(1)
     }
-  })
+
+    //give time for final broadcast to finish
+    console.log('Closing Ledger...')
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    if (!bundleFlag) {
+      await processList([txCountS],false,true,false);
+      let txCountF = parseInt(await msigContract.transactionCount().call()) - 1;
+      console.log('\nMsig txs: ',txCountS,' - ',txCountF,' ready')
+    }
+    console.log('Finished')
+    process.exit()
+  } catch (err) {
+    console.log(err)
+    process.exit(1)
+  }
 }
 
 main();

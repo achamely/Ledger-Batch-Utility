@@ -17,7 +17,7 @@
     "@ledgerhq/hw-transport-node-hid": "^6.28.4",
     "ethers": "^6.15.0",
     "request-promise": "^4.2.6",
-    "tronweb": "^5.3.2",
+    "tronweb": "^6.2.0",
     "web3": "^4.6.0"
   }
 }
