@@ -55,7 +55,7 @@ const sign = async function (ledger, tx, action, bundleFlag) {
   if (bundleFlag) {
     await queueBundleTx(txo.transaction,uuid)
   } else {
-    //await broadcast(txo.transaction)
+    await broadcast(txo.transaction)
   }
 }
 
