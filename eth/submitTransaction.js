@@ -34,8 +34,8 @@ let gasPrice, maxFeePerGas;
 
 let bundle_uuid = randomUUID();
 let adminStats = {};
-
 let provider = 'flashbot';
+let nonce;
 
 const sign = async (ledger, tx, nonce, bundleFlag) => {
   const args = tx.split(' ');
@@ -263,6 +263,11 @@ async function main() {
         }
         continue;
       }
+      if (key=='n') {
+        nonce = parseInt(myArgs[i]);
+        myArgs.splice(i,1);
+        continue;
+      }
       if (['p','provider'].includes(key)) {
         provider = myArgs[i].toLowerCase();
         myArgs.splice(i,1);
@@ -318,9 +323,14 @@ async function main() {
   try {
     const ledger = await createLedger()
     let signer = await ledger.getAddress(config.hd_path)
-    let nonce = await web3.eth.getTransactionCount(signer.address)
     console.log("Signing Address:", signer.address)
-    console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
+
+    if (nonce === undefined) {
+      nonce = await web3.eth.getTransactionCount(signer.address)
+      console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
+    } else {
+      console.log("Using NONCE from command line: \x1b[32m%s\x1b[0m",nonce)
+    }
 
     try {
       for (const tx of txs) {
