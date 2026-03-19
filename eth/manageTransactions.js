@@ -324,7 +324,6 @@ async function main() {
     const signer = await ledger.getAddress(config.hd_path);
     console.log("Signing Address:", signer.address)
 
-    let nonce = await web3.eth.getTransactionCount(signer.address);
     if (nonce === undefined) {
       nonce = await web3.eth.getTransactionCount(signer.address)
       console.log("Using NONCE from blockchain: \x1b[32m%s\x1b[0m",nonce)
