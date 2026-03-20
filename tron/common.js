@@ -303,6 +303,28 @@ async function bundleBroadcast (signedtxarray, broadcasted) {
       console.log("Please check Cached TXs validity before trying again");
       process.exit(0);
     }
+
+    //check for tx confirmation every 5secs for 1.5 min
+    let confCheck=30;
+    let chainInfo;
+    while (confCheck > 0) {
+      console.log(`Waiting on ${stx.txID} to confirm. Attempts Remaining ${confCheck}`);
+      chainInfo = await tronWeb.trx.getTransactionInfo(stx.txID);
+      if (chainInfo.receipt !== undefined) {
+        break;
+      }
+      confCheck--;
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+
+    if (chainInfo.receipt === undefined || chainInfo.result === 'FAILED') {
+     console.log("Error broadcasting Cached TXs");
+     console.log(`${stx.txID} not found on chain or failed to execute`);
+     console.log("Please double check all txs or try again");
+     console.log(chainInfo);
+     process.exit(0);
+    }
+    console.log(`${stx.txID} confirmed.`);
   }
 }
 
