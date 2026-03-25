@@ -127,7 +127,9 @@ async function main() {
 
     let ptl = decodedPending.length;
     let expired = false;
-    let broadcasted = []
+    let broadcasted = [];
+    let submitter = [];
+    let confirmer = [];
     decodedPending.forEach(pTx => {
       let output = "";
       let status = 'Unknown'
@@ -148,6 +150,12 @@ async function main() {
         status = pTx['chainStatus'];
         output +=`\x1b[36m`
         broadcasted.push(pTx.txid);
+      }
+
+      if (pTx['method'] == 'addBlackList') {
+        submitter.push(pTx['signedtx']);
+      } else {
+        confirmer.push(pTx['signedtx']);
       }
 
       output +=`${status},`;
@@ -183,8 +191,10 @@ async function main() {
       }
       const bq = await askQuestion('\nBroadcast Bundle Txs to Blockchain? [y/n] ');
       if (bq === 'y') {
+        let txList = {'submit': submitter, 'confirm': confirmer};
         await new Promise(resolve => setTimeout(resolve, 2000));
-        await bundleBroadcast(signedtxarray, broadcasted);
+        //await bundleBroadcast(signedtxarray, broadcasted);
+        await bundleBroadcast(txList, broadcasted);
         console.log('Finished');
       } else {
         console.log("Exiting");

@@ -134,6 +134,7 @@ async function decodeBundleTxs(txList){
         'expire': dtx.raw_data.expiration,
         'txid': dtx.txID,
         'chainStatus': chainStatus,
+        'signedtx' : dtx,
       })
       try {
         nextTx = nextTx + 1;
@@ -151,6 +152,7 @@ async function decodeBundleTxs(txList){
         'expire': dtx.raw_data.expiration,
         'txid': dtx.txID,
         'chainStatus': chainStatus,
+        'signedtx' : dtx,
       })
     }
   }
@@ -274,7 +276,82 @@ async function broadcast (signedtx) {
     }
 }
 
-async function bundleBroadcast (signedtxarray, broadcasted) {
+async function bundleBroadcast (txList, broadcasted) {
+  console.log("Broadcasting Submit Txs");
+  await bundleBroadcast_helper(txList['submit'], broadcasted);
+
+  console.log("Broadcasting Confirm Txs");
+  await bundleBroadcast_helper(txList['confirm'], broadcasted);
+}
+
+async function bundleBroadcast_helper (signedtxarray, broadcasted) {
+  let txidChecklist=[];
+  for (const stx of signedtxarray) {
+    let broadcastRetry=5;
+
+    if (broadcasted.includes(stx.txID)) {
+      console.log(`${stx.txID} Skipped, Already Broadcast`);
+      continue;
+    }
+
+    while (broadcastRetry > 0) {
+      let res = await broadcast(stx);
+      if (res) {
+        txidChecklist.push(stx.txID);
+        break;
+      }
+      //incremental backoff between retries to max of 5 seconds
+      let base = 1500
+      let backoff = (base * 5/broadcastRetry)
+      if (backoff > 5000) {
+        backoff = 5000
+      }
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      broadcastRetry--;
+    }
+
+    if (broadcastRetry < 1) {
+      console.log("Error broadcasting Cached TXs")
+      console.log("Please check Cached TXs validity before trying again");
+      process.exit(0);
+    }
+  }
+
+  //give broadcasts a second to finish
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  let broadcastFailed=false;
+
+  for (const txid of txidChecklist) {
+    //check for tx confirmation every 5secs for 1.5 min
+    let confCheck=30;
+    let chainInfo;
+    while (confCheck > 0) {
+      console.log(`Waiting on ${txid} to confirm. Attempts Remaining ${confCheck}`);
+      chainInfo = await tronWeb.trx.getTransactionInfo(txid);
+      if (chainInfo.receipt !== undefined) {
+        break;
+      }
+      confCheck--;
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+
+    if (chainInfo.receipt === undefined || chainInfo.result === 'FAILED') {
+      console.log(`${txid} not found on chain or failed to execute`);
+      console.log(chainInfo);
+      broadcastFailed=true;
+    }
+    console.log(`${txid} confirmed.`);
+  }
+
+  if (broadcastFailed) {
+    console.log("Error broadcasting Cached TXs");
+    console.log("Please double check all txs or try again");
+    process.exit(0);
+  }
+}
+
+async function leg_bundleBroadcast (signedtxarray, broadcasted) {
   for (const stx of signedtxarray) {
     let broadcastRetry=5;
 
