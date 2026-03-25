@@ -7,7 +7,7 @@ const {
 
 let detailFlag, printSummary, printGroup;
 
-const interval = 200
+const interval = 400
 const range = (start, stop, step) =>
   Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step);
 
