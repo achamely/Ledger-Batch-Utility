@@ -87,7 +87,11 @@ const sign = async (ledger, tx, nonce, action, bundleFlag, rawFlag) => {
 async function main() {
   const myArgs = process.argv.slice(2);
 
+  let methodList = [];
+  var dangerFlag=false;
+  var dangerOwnerFlag=false;
   var bundleFlag=false;
+
   var rawFlag=false;
   var simFlag=false;
   for (let i = 0; i < myArgs.length; ) {
@@ -97,6 +101,15 @@ async function main() {
       const key = arg.slice(2).toLowerCase();
       myArgs.splice(i,1);
 
+
+      if (key=='dangerous') {
+        dangerFlag=true;
+        continue;
+      }
+      if (key=='dangerous-owner') {
+        dangerOwnerFlag=true;
+        continue;
+      }
       if (key=='b') {
         bundleFlag=true;
         uuid = myArgs[i];
@@ -211,6 +224,7 @@ async function main() {
     console.log("==================================\x1b[33m*PENDING\x1b[0m=====================================================================================");
     console.log("Index, TX*, Destination, Method, Address, Value, Sender, Nonce")
     let ptl = decodedPending.length;
+    let m_summary = {};
     decodedPending.forEach(pTx => {
       console.log(`\x1b[33m${ptl},${pTx} \x1b[0m`);
       ptl--;
@@ -218,11 +232,28 @@ async function main() {
       let l = dt.length;
       let saddr = dt[l-2];
       let san = dt[l-1];
+      let method = dt[3];
+
       if (bsigners[saddr] === undefined || bsigners[saddr].start > san) {
         bsigners[saddr] = {'start':san}
       }
+
+      if (m_summary[method] === undefined) {
+        m_summary[method] = 1
+      } else {
+        m_summary[method] += 1
+      }
+
+      !methodList.includes(method) && methodList.push(method);
     })
-    console.log("===============================================================================================================================\n\n");
+    console.log("===============================================================================================================================\n");
+
+    console.log("\x1b[35mMethod Count:\x1b[0m");
+    for (const [key, value] of Object.entries(m_summary)) {
+      console.log(`\x1b[36m${key}\x1b[0m : \x1b[33m${value}\x1b[0m`);
+    }
+
+    console.log("\n");
     console.log("\x1b[36mNote: the displayed Pending MultiSig TX Number* is calculated. If another multisig tx is submitted before this bundle, this will change.");
     console.log("To avoid confirmation issues in bundle, Please ensure this bundle is broadcasted before submitting new msig txs to the blockchain.\n\n\n\x1b[0m")
 
@@ -287,8 +318,8 @@ async function main() {
     txs = myArgs[1].split(',').filter(Boolean);
   }
 
-  let sortedTxs={};
   let data;
+  let sortedTxs={};
   if (txs.length==1) {
     data=[txs,txs]
   } else {
@@ -301,12 +332,48 @@ async function main() {
     await processList(data,contractAddress,true).then(res => {
       res.forEach(subArray => {
         if (subArray.length > 0) {
-          const key = subArray[0]; // First element as key
-          const value = subArray.slice(1); // Remaining elements as value
-          sortedTxs[key] = value; // If only one value, store it as a single value
+          !methodList.includes(subArray[2]) && methodList.push(subArray[2]);
+
+          sortedTxs[subArray[0]] = {
+            dest: subArray[1],
+            method: subArray[2],
+            target: subArray[3],
+            value: subArray[4],
+            status: subArray[5],
+            signers: subArray[6]
+          }
         }
       });
     });
+  }
+
+  console.log('\n\n');
+  for (const method of methodList) {
+    switch (method) {
+      case 'confirmTransaction': case 'revokeConfirmation':
+      case 'addBlackList': case 'addToBlockedList': case 'removeBlackList': case 'removeFromBlockedList':
+       continue;
+      case 'addOwner': case 'removeOwner': case 'replaceOwner': case 'setThreshold': case 'transferOwnership': case 'claimOwnership':
+        if (dangerOwnerFlag) {
+          console.log("\x1b[33mNotice: Change Owner method found with \x1b[32m--dangerous-ownership \x1b[33mflag\x1b[0m");
+          continue;
+        } else {
+          console.log("\x1b[35mAlert: \x1b[31mChange Owner\x1b[35m method found without \x1b[31m--dangerous-ownership \x1b[35mflag\x1b[0m");
+          console.log("\x1b[35mExiting: Please rerun with \x1b[31m--dangerous-ownership \x1b[35mflag if you REALLY WANT TO CHANGE OWNER\x1b[0m");
+          console.log('\n\n');
+          process.exit(1);
+        }
+      default:
+         if (dangerFlag) {
+          console.log(`\x1b[33mNotice: ${method} method found with \x1b[32m--dangerous \x1b[33mflag\x1b[0m`);
+          continue;
+        } else {
+          console.log(`\x1b[35mAlert: Dangerous method \x1b[31m${method}\x1b[35m found without \x1b[31m--dangerous \x1b[35mflag\x1b[0m`);
+          console.log("\x1b[35mExiting: Please rerun with \x1b[31m--dangerous \x1b[35mflag if you want to proceed.\x1b[0m");
+          console.log('\n\n');
+          process.exit(1);
+        }
+    }
   }
 
   console.log(`\nYou are performing ---------- \x1b[35m${action}\x1b[0m ---------- on the above list of transactions.\n`);
@@ -338,8 +405,8 @@ async function main() {
           let executed=false;
           let signers=[];
           if (txDetails) {
-            executed = txDetails[4];
-            signers = txDetails[6];
+            executed = txDetails['status'];
+            signers = txDetails['signers'];
           }
           if (!executed) {
             switch (action) {

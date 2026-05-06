@@ -213,6 +213,11 @@ function decodeData(hex) {
       addr = hex.slice(32,74);
       value = 0;
       break;
+    case '0x173825d9':
+      method = 'removeOwner';
+      addr = hex.slice(32,74);
+      value = 0;
+      break;
     case '0xcc872b66':
       method = 'issue';
       addr = '';
@@ -233,8 +238,18 @@ function decodeData(hex) {
       addr = hex.slice(32,74);
       value = parseInt(hex.slice(74,138).replace(/\b0+/g, ''),16)/1e6;
       break;
+    case '0x2e1a7d4d':
+      method = 'withdraw';
+      addr = '';
+      value = parseInt(hex.slice(10,74).replace(/\b0+/g, ''),16)/1e6;
+      break;
     case '0x8456cb59':
       method = 'pause';
+      addr = '';
+      value = 0;
+      break;
+    case '0x3f4ba83a':
+      method = 'unpause';
       addr = '';
       value = 0;
       break;
@@ -242,6 +257,11 @@ function decodeData(hex) {
       method = 'proxy-upgrade';
       addr = hex.slice(32,74);
       value = tronWeb.address.fromHex(hex.slice(96,138));
+      break;
+    case '0xa69fe8c7':
+      method = 'setReceiveAddress';
+      addr = hex.slice(32,74);
+      value = 0;
       break;
     case '0x0753c30c':
       method = 'deprecate';

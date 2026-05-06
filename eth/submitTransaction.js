@@ -56,7 +56,8 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
 
 
   let contractAddress;
-  let functions = []
+  let functions = [];
+
   switch (token) {
     case 'USDT':
       tokenAddress = 'dac17f958d2ee523a2206206994597c13d831ec7'
@@ -99,7 +100,7 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
       contractAddress = getContractAddress('ADMIN_USAT')
       break
     case 'ADMIN_USAT':
-      tokenAddress = '0x62b3a0f6ffc5efd7692053A9040fE44F9AC8c5Cb'
+      tokenAddress = '62b3a0f6ffc5efd7692053A9040fE44F9AC8c5Cb'
       functions=['removeOwner','revokeConfirmation','addOwner','changeRequirement','confirmTransaction','submitTransaction','replaceOwner','executeTransaction']
       contractAddress = getContractAddress('ADMIN_USAT')
       break
@@ -246,6 +247,10 @@ const sign = async (ledger, tx, nonce, bundleFlag) => {
 
 async function main() {
 
+  let methodList = [];
+  var dangerFlag = false;
+  var dangerOwnerFlag = false;
+
   let bundleFlag=false;
   for (let i = 0; i < myArgs.length; ) {
     const arg = myArgs[i];
@@ -254,6 +259,14 @@ async function main() {
       const key = arg.slice(2).toLowerCase();
       myArgs.splice(i,1);
 
+      if (key=='dangerous') {
+        dangerFlag=true;
+        continue;
+      }
+      if (key=='dangerous-ownership') {
+        dangerOwnerFlag=true;
+        continue;
+      }
       if (key=='b') {
         bundleFlag=true;
         let uuid = myArgs[i];
@@ -310,6 +323,43 @@ async function main() {
   console.log(config)
   console.log('txs:')
   console.log(txs)
+
+  for (const tx of txs) {
+    if (!tx.startsWith('#')) {
+      let data = tx.split(' ');
+      let method = data[1];
+      !methodList.includes(method) && methodList.push(method);
+    }
+  }
+
+  console.log('\n\n');
+  for (const method of methodList) {
+    switch (method) {
+      case 'freeze': case 'unfreeze':
+      case 'addBlackList': case 'addToBlockedList': case 'removeBlackList': case 'removeFromBlockedList':
+       continue;
+      case 'addOwner': case 'removeOwner': case 'replaceOwner': case 'setThreshold': case 'transferOwnership': case 'claimOwnership':
+        if (dangerOwnerFlag) {
+          console.log("\x1b[33mNotice: Change Owner method found with \x1b[32m--dangerous-ownership \x1b[33mflag\x1b[0m");
+          continue;
+        } else {
+          console.log("\x1b[35mAlert: \x1b[31mChange Owner\x1b[35m method found without \x1b[31m--dangerous-ownership \x1b[35mflag\x1b[0m");
+          console.log("\x1b[35mExiting: Please rerun with \x1b[31m--dangerous-ownership \x1b[35mflag if you REALLY WANT TO CHANGE OWNER\x1b[0m");
+          console.log('\n\n');
+          process.exit(1);
+        }
+      default:
+         if (dangerFlag) {
+          console.log(`\x1b[33mNotice: ${method} method found with \x1b[32m--dangerous \x1b[33mflag\x1b[0m`);
+          continue;
+        } else {
+          console.log(`\x1b[35mAlert: Dangerous method \x1b[31m${method}\x1b[35m found without \x1b[31m--dangerous \x1b[35mflag\x1b[0m`);
+          console.log("\x1b[35mExiting: Please rerun with \x1b[31m--dangerous \x1b[35mflag if you want to proceed.\x1b[0m");
+          console.log('\n\n');
+          process.exit(1);
+        }
+    }
+  }
 
   const answer = await askQuestion('\nIs the configuration correct? [y/n]: ');
 
