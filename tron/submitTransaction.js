@@ -7,7 +7,7 @@ const {
   broadcast,
   tronWeb,
   initContracts,
-  getMsigContract,
+  getContract,
   queueBundleTx,
   isValidUuidV4,
   askQuestion,
@@ -283,7 +283,7 @@ async function main() {
   await initContracts();
   let msigContract;
   try {
-    msigContract = getMsigContract(); // Fetch initialized contract
+    msigContract = getContract('ADMIN'); // Fetch initialized contract
   } catch (err) {
     console.error("Error: ", err.message);
     return;

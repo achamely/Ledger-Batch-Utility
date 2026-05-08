@@ -2,8 +2,11 @@ const {
   tronWeb,
   decodeData,
   initContracts,
-  getMsigContract,
+  getContract,
+  getSymbol,
 } = require('./common');
+
+const { getBalance } = require('./helperQueryBalance.js');
 
 let detailFlag, printSummary, printGroup;
 
@@ -15,13 +18,13 @@ let grouped = {};
 let txList = [];
 var respData = [];
 var callsRemaining = 0;
+let adminMSIG;
 
 
 async function getStatusHelper(tx) {
-  const msigContract = getMsigContract();
 
   try {
-    const result = await msigContract.transactions(tx).call();
+    const result = await adminMSIG.transactions(tx).call();
 
     if (result.hasOwnProperty('data')) {
       let formatted_amount, method, addr;
@@ -37,13 +40,22 @@ async function getStatusHelper(tx) {
         addr = tronWeb.address.fromHex(data.addr);
       }
 
+      let curBal = '-';
+      if (addr.length > 0) {
+        let sym = getSymbol(result.destination)
+        curBal = await getBalance(sym, addr);
+        curBal = parseInt(curBal) / 1e6
+        curBal = `${curBal}_${sym}`
+      }
+
       const ret = [
         tx,
         tronWeb.address.fromHex(result.destination),
         method,
         addr,
         formatted_amount,
-        result.executed
+        result.executed,
+        curBal
       ];
 
       if (result.executed || !detailFlag) {
@@ -102,8 +114,7 @@ function checkPrint(ret) {
 }
 
 async function getConfirmationsHelper(tx,ret) {
-  const msigContract = getMsigContract();
-  await msigContract.getConfirmations(tx).call().then( result=> {
+  await adminMSIG.getConfirmations(tx).call().then( result=> {
     let rlen = result.length
     let ta = ''
     if (rlen > 0) {
@@ -145,9 +156,8 @@ async function getStatus() {
 async function processList(list, df, ps, pg) {
   await initContracts();
 
-  let msigContract;
   try {
-    msigContract = getMsigContract(); // Fetch initialized contract
+    adminMSIG = getContract('ADMIN'); // Fetch initialized contract
   } catch (err) {
     console.error("Error: ", err.message);
     return;
@@ -160,7 +170,7 @@ async function processList(list, df, ps, pg) {
   //make sure list is reset before processing again;
   respData.length=0
 
-  await msigContract.transactionCount().call().then( txCount => {
+  await adminMSIG.transactionCount().call().then( txCount => {
     end = parseInt(txCount) - 1
 
     switch (list.length) {

@@ -31,22 +31,68 @@ if (!(config.trongridApiKey === null || config.trongridApiKey.trim() === '')) {
 const tronWeb = new TronWeb(tronWebOptions);
 tronWeb.setAddress(config.contract_address);
 
-const msigContractAddress = config.contract_address;
-let msigContract = null;
+const CONTRACT_MAPPING = {
+  ADMIN: 'TBPxhVAsuzoFnKyXtc1o2UySEydPHgATto',
+  USDT: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+  CNHT: 'TCfCGjekyqmdYt1yxfUM5v5SDtaY6tuWik',
+  MXNT: 'TDp7Kbp6ajeWeQN9J57Vnw4WyQdKpuARDF',
+};
 
+let CONTRACTS = {};
 async function initContracts() {
   try {
-    msigContract = await tronWeb.contract().at(msigContractAddress);
+    for (const sym of Object.keys(CONTRACT_MAPPING)) {
+      let contractAddress = getContractAddress(sym);
+      let contract = await tronWeb.contract().at(contractAddress);
+      CONTRACTS[sym] = contract;
+    }
   } catch (err) {
     console.error("Failed to initialize contract:", err);
   }
 }
 
-function getMsigContract() {
-  if (!msigContract) {
-    throw new Error("msigContract is not initialized. Did you call initContracts()?");
+function getSymbol(address){
+  let b58Addr = tronWeb.address.fromHex(address);
+
+  const sym = Object.keys(CONTRACT_MAPPING).find(
+    (key) => CONTRACT_MAPPING[key] === b58Addr
+  );
+
+  if (sym !== undefined) {
+    return sym;
   }
-  return msigContract;
+
+  console.log("Unknown token contract address",address);
+  return null;
+}
+
+function getContractAddress(sym) {
+  if (sym in CONTRACT_MAPPING) {
+    return CONTRACT_MAPPING[sym];
+  }
+
+  console.log(`Unknown contract for ${sym}`);
+  process.exit(0);
+}
+
+function getContract(sym,isAddress=false) {
+  let address;
+
+  if (isAddress) {
+    address = sym;
+    sym = getSymbol(address);
+  } else {
+    address=getContractAddress(sym)
+  }
+
+  sym = sym.toUpperCase();
+
+  if (sym in CONTRACTS) {
+    return CONTRACTS[sym];
+  }
+
+  console.log(`Could not get contract for ${sym}`)
+  process.exit(1)
 }
 
 async function createLedger() {
@@ -89,7 +135,7 @@ async function getTxData (type,data,dest,bundleFlag) {
         callValue:0
     };
   let sc,signer
-  sc = tronWeb.address.toHex(msigContractAddress).toLowerCase();
+  sc = tronWeb.address.toHex(getContractAddress('ADMIN')).toLowerCase();
   signer = tronWeb.address.toHex(config.signerAddress).toLowerCase();
   const txo = await tronWeb.transactionBuilder.triggerSmartContract(sc, action, options,  parameter, signer);
   if (bundleFlag) {
@@ -104,10 +150,12 @@ async function getTxData (type,data,dest,bundleFlag) {
 async function decodeBundleTxs(txList){
   let retval=[]
   let nextTx = '-';
+  let adminMSIGAddress = tronWeb.address.fromHex(adminMSIG.address);
+
   try {
-    nextTx = parseInt(await msigContract.transactionCount().call());
+    nextTx = parseInt(await adminMSIG.transactionCount().call());
   } catch (err) {
-    console.log(`Tried to get transaction count for contract ${msigContractAddress}, but got err: ${err}`);
+    console.log(`Tried to get transaction count for contract ${adminMSIGAddress}, but got err: ${err}`);
   }
 
   for (const dtx of txList){
@@ -529,6 +577,7 @@ async function queueBundleTx(signedtx, bUUID) {
 
 
 module.exports = {
+  getSymbol,
   createLedger,
   padLeftZeros,
   getTxData,
@@ -536,7 +585,8 @@ module.exports = {
   broadcast,
   tronWeb,
   initContracts,
-  getMsigContract,
+  getContract,
+  getContractAddress,
   getBundleCache,
   clearBundleCache,
   queueBundleTx,

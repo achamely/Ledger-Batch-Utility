@@ -286,7 +286,8 @@ async function main() {
             target: subArray[3],
             value: subArray[4],
             status: subArray[5],
-            signers: subArray[6]
+            addrBal: subArray[6],
+            signers: subArray[7]
           }
         }
      });
@@ -343,7 +344,6 @@ async function main() {
       for (const tx of txs) {
         if (!tx.startsWith('#')) {
           let txDetails = sortedTxs[tx];
-          console.log(txDetails);
           let executed=false;
           let signers=[];
           if (txDetails) {
