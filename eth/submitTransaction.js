@@ -340,21 +340,21 @@ async function main() {
        continue;
       case 'addOwner': case 'removeOwner': case 'replaceOwner': case 'setThreshold': case 'transferOwnership': case 'claimOwnership':
         if (dangerOwnerFlag) {
-          console.log("\x1b[33mNotice: Change Owner method found with \x1b[32m--dangerous-ownership \x1b[33mflag\x1b[0m");
+          console.log("\x1b[33m Notice: \x1b[32m Change Owner \x1b[33m method found with \x1b[32m --dangerous-ownership \x1b[33m flag\x1b[0m");
           continue;
         } else {
-          console.log("\x1b[35mAlert: \x1b[31mChange Owner\x1b[35m method found without \x1b[31m--dangerous-ownership \x1b[35mflag\x1b[0m");
-          console.log("\x1b[35mExiting: Please rerun with \x1b[31m--dangerous-ownership \x1b[35mflag if you REALLY WANT TO CHANGE OWNER\x1b[0m");
+          console.log("\x1b[35m Alert: \x1b[31m Change Owner \x1b[35m method found without \x1b[31m --dangerous-ownership \x1b[35m flag\x1b[0m");
+          console.log("\x1b[35m Exiting: Please rerun with \x1b[31m --dangerous-ownership \x1b[35m flag if you REALLY WANT TO CHANGE OWNER\x1b[0m");
           console.log('\n\n');
           process.exit(1);
         }
       default:
          if (dangerFlag) {
-          console.log(`\x1b[33mNotice: ${method} method found with \x1b[32m--dangerous \x1b[33mflag\x1b[0m`);
+          console.log(`\x1b[33m Notice: \x1b[32m ${method} \x1b[33m method found with \x1b[32m --dangerous \x1b[33m flag\x1b[0m`);
           continue;
         } else {
-          console.log(`\x1b[35mAlert: Dangerous method \x1b[31m${method}\x1b[35m found without \x1b[31m--dangerous \x1b[35mflag\x1b[0m`);
-          console.log("\x1b[35mExiting: Please rerun with \x1b[31m--dangerous \x1b[35mflag if you want to proceed.\x1b[0m");
+          console.log(`\x1b[35m Alert: Dangerous method \x1b[31m ${method} \x1b[35m found without \x1b[31m --dangerous \x1b[35m flag\x1b[0m`);
+          console.log("\x1b[35m Exiting: Please rerun with \x1b[31m --dangerous \x1b[35m flag if you want to proceed.\x1b[0m");
           console.log('\n\n');
           process.exit(1);
         }
