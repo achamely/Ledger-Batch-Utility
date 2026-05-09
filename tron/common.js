@@ -126,6 +126,10 @@ async function getTxData (type,data,dest,bundleFlag) {
       parameter = [{type:'uint256',value:data}];
       action = "revokeConfirmation(uint256)";
       break;
+    case 'execute':
+      parameter = [{type:'uint256',value:data}];
+      action = "executeTransaction(uint256)";
+      break;
     default:
       console.log("Invalid TxData type",type);
       return
@@ -150,6 +154,7 @@ async function getTxData (type,data,dest,bundleFlag) {
 async function decodeBundleTxs(txList){
   let retval=[]
   let nextTx = '-';
+  let adminMSIG = getContract('ADMIN');
   let adminMSIGAddress = tronWeb.address.fromHex(adminMSIG.address);
 
   try {

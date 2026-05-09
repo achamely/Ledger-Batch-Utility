@@ -40,6 +40,10 @@ async function getStatusHelper(tx) {
         addr = tronWeb.address.fromHex(data.addr);
       }
 
+      if (addr == '' && method == 'redeem') {
+        addr = tronWeb.address.fromHex(adminMSIG.address);
+      }
+
       let curBal = '-';
       if (addr.length > 0) {
         let sym = getSymbol(result.destination)

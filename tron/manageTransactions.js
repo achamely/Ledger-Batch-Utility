@@ -97,7 +97,7 @@ async function main() {
   let action = myArgs[0] || '';
   action = action.toLowerCase();
 
-  if ( !['confirm','revoke','broadcast','clear','display'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
+  if ( !['confirm','revoke','execute','broadcast','clear','display'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
     console.log("\x1b[31m Invalid Syntax. Please call with following format: \x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js display --b <bundle UUID>\x1b[0m\n");
     console.log("                       or\n");
@@ -108,11 +108,13 @@ async function main() {
     console.log("\x1b[32m    node manageTransactions.js clear 3,4,5 --b <bundle UUID>\x1b[0m\n");
     console.log("                       or\n");
     console.log("\x1b[32m    node manageTransactions.js <action> <filepath || tx || csv_list_of_txs>\x1b[0m");
-    console.log(" Valid options for action are \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
+    console.log(" Valid options for action are \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m or \x1b[35m'execute'\x1b[0m");
     console.log(" Examples:")
     console.log("\x1b[32m    node manageTransactions.js confirm txs.to_confirm \x1b[0m");
     console.log(" or")
     console.log("\x1b[32m    node manageTransactions.js revoke 2000,2001 \x1b[0m");
+    console.log(" or")
+    console.log("\x1b[32m    node manageTransactions.js execute 2000,2001 \x1b[0m");
     process.exit(0);
   }
 
@@ -365,6 +367,8 @@ async function main() {
                   continue;
                 }
                 break
+              case 'execute':
+                break;
               default:
                 console.log("Unknown action ",action,". Please select either \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
                 process.exit(0);

@@ -23,6 +23,7 @@ async function getStatusHelper(tx) {
     const result = await adminMSIG.methods.transactions(tx).call();
     let formatted_amount, method, addr;
 
+
     if (result.data == null) {
       formatted_amount = result.value / 1e18;
       method = 'eth-transfer';
@@ -32,6 +33,10 @@ async function getStatusHelper(tx) {
       formatted_amount = data.value;
       method = data.method;
       addr = data.addr;
+    }
+
+    if (addr == '' && method == 'redeem') {
+      addr = adminMSIG._address;
     }
 
     let curBal = '-';

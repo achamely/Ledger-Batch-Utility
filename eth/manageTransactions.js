@@ -41,11 +41,14 @@ const sign = async (ledger, tx, nonce, action, bundleFlag, rawFlag) => {
   let inst;
   switch (action) {
     case 'confirm':
-      inst='0xc01a8c84'
-    break
+      inst='0xc01a8c84';
+    break;
     case 'revoke':
-      inst='0x20ea8d86'
-    break
+      inst='0x20ea8d86';
+    break;
+    case 'execute':
+      inst='0xee22610b';
+    break;
   }
   const data = inst + padLeftZeros(parseInt(tx).toString(16));
   const txData = getTxData(nonce, data, gasLimit, gasPrice, maxFeePerGas, contractAddress);
@@ -160,7 +163,7 @@ async function main() {
   let action = myArgs[0] || '';
   action = action.toLowerCase();
 
-  if ( !['confirm','revoke','broadcast','clear','display'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
+  if ( !['confirm','revoke','execute','broadcast','clear','display'].includes(action) || myArgs.length < 1 || (myArgs.length < 2 && action == 'broadcast' && !bundleFlag) ) {
     console.log("\x1b[31m Invalid Syntax. Please call with following format: \x1b[0m\n");
     console.log("\x1b[32m    node manageTransactions.js display --b <bundle UUID>\x1b[0m\n");
     console.log("                       or\n");
@@ -178,6 +181,7 @@ async function main() {
     console.log("\x1b[32m    node manageTransactions.js confirm txs.to_confirm --b <bundle UUID>\x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js confirm 5000 --b <bundle UUID>\x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js revoke 2000,2001 \x1b[0m");
+    console.log("\x1b[32m    node manageTransactions.js execute 2000,2001 \x1b[0m");
     console.log("\x1b[32m    node manageTransactions.js broadcast --b <bundle UUID>\x1b[0m");
     console.log("\n Optional:");
     console.log("   add \x1b[32m--ca <admin msig contract address>\x1b[0m to bypass ui prompt and force the admin msig to interact with");
@@ -423,8 +427,10 @@ async function main() {
                   continue;
                 }
                 break
+              case 'execute':
+                break;
               default:
-                console.log("Unknown action ",action,". Please select either \x1b[35m'confirm'\x1b[0m or \x1b[35m'revoke'\x1b[0m");
+                console.log("Unknown action ",action,". Please select either \x1b[35m'confirm'\x1b[0m ,\x1b[35m'revoke'\x1b[0m, or \x1b[35m'execute'\x1b[0m");
                 process.exit(0);
             }
 
